@@ -96,6 +96,16 @@ jobs:
       - name: 🔍 Validate AWS credentials
         run: |
           echo "🔍 Validating AWS credentials..."
+          echo "AWS Region: ${{ env.AWS_REGION }}"
+          echo "Checking if credentials are available..."
+          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+            echo "❌ AWS_ACCESS_KEY_ID secret is not set"
+            exit 1
+          fi
+          if [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "❌ AWS_SECRET_ACCESS_KEY secret is not set"
+            exit 1
+          fi
           aws sts get-caller-identity
           echo "✅ AWS credentials validated"
 
@@ -104,7 +114,13 @@ jobs:
           npm install -g serverless@3
           echo "✅ Serverless Framework installed"
 
-      - name: 🚀 Deploy to Development
+      - name: � Validate Serverless Configuration
+        run: |
+          echo "🔧 Validating serverless.yml configuration..."
+          sls print --stage dev --region ${{ env.AWS_REGION }}
+          echo "✅ Serverless configuration is valid"
+
+      - name: �🚀 Deploy to Development
         run: |
           echo "🚀 Deploying to development stage..."
           sls deploy --stage dev --region ${{ env.AWS_REGION }} --verbose
@@ -260,20 +276,46 @@ jobs:
     if: always()
 
     steps:
-      - name: 📢 Deployment Success Notification
-        if: needs.deploy-dev.result == 'success'
+      - name: � Debug Job Results
+        run: |
+          echo "📊 Job Results Summary:"
+          echo "Test Job Result: ${{ needs.test.result }}"
+          echo "Deploy Dev Job Result: ${{ needs.deploy-dev.result }}"
+          
+      - name: �📢 Deployment Success Notification
+        if: needs.deploy-dev.result == 'success' && needs.test.result == 'success'
         run: |
           echo "🎉 Deployment completed successfully!"
           echo "✅ Bus Tracking System deployed to development environment"
           echo "🔗 Check the deployment at your AWS Console"
-
+          
+      - name: 📢 Test Failure Notification
+        if: needs.test.result == 'failure'
+        run: |
+          echo "❌ Tests failed!"
+          echo "🔍 Please check the test logs above for details"
+          echo "📝 Common test issues:"
+          echo "   - Linting errors in code"
+          echo "   - Unit test failures"
+          echo "   - Syntax errors in JavaScript"
+          
       - name: 📢 Deployment Failure Notification
-        if: needs.deploy-dev.result == 'failure' || needs.test.result == 'failure'
+        if: needs.deploy-dev.result == 'failure'
         run: |
           echo "❌ Deployment failed!"
-          echo "🔍 Please check the logs above for details"
-          echo "📝 Common issues:"
-          echo "   - AWS credentials not configured"
-          echo "   - Test failures"
+          echo "🔍 Please check the deployment logs above for details"
+          echo "📝 Common deployment issues:"
+          echo "   - AWS credentials not configured properly"
+          echo "   - Insufficient IAM permissions"
           echo "   - Serverless configuration errors"
-          exit 1
+          echo "   - Resource conflicts in AWS"
+          
+      - name: 📢 Overall Status
+        run: |
+          if [[ "${{ needs.test.result }}" == "success" && "${{ needs.deploy-dev.result }}" == "success" ]]; then
+            echo "✅ All jobs completed successfully!"
+            exit 0
+          else
+            echo "❌ One or more jobs failed. Check the logs above."
+            exit 1
+          fi
