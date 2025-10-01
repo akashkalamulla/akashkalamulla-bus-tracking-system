@@ -12,21 +12,63 @@ const LOG_LEVELS = {
 const currentLogLevel = LOG_LEVELS[process.env.LOG_LEVEL?.toUpperCase()] ?? LOG_LEVELS.INFO;
 
 /**
+ * Safely stringify data, handling circular references and errors
+ * @param {any} data - Data to stringify
+ * @returns {string} Safe JSON string
+ */
+const safeStringify = (data) => {
+  try {
+    return JSON.stringify(data, (key, value) => {
+      // Handle circular references
+      if (typeof value === 'object' && value !== null) {
+        if (value instanceof Error) {
+          return {
+            name: value.name,
+            message: value.message,
+            stack: value.stack,
+          };
+        }
+      }
+      return value;
+    });
+  } catch (error) {
+    return JSON.stringify({
+      error: 'Failed to stringify log data',
+      originalError: error.message,
+      data: String(data),
+    });
+  }
+};
+
+/**
  * Create a log entry with timestamp and level
  * @param {string} level - Log level
  * @param {string} message - Log message
  * @param {...any} args - Additional arguments
  */
 const log = (level, message, ...args) => {
-  const timestamp = new Date().toISOString();
-  const logEntry = {
-    timestamp,
-    level,
-    message,
-    ...(args.length > 0 && { data: args }),
-  };
+  try {
+    const timestamp = new Date().toISOString();
+    const logEntry = {
+      timestamp,
+      level,
+      message,
+      ...(args.length > 0 && { data: args }),
+    };
 
-  console.log(JSON.stringify(logEntry));
+    console.log(safeStringify(logEntry));
+  } catch (error) {
+    // Fallback logging if everything else fails
+    console.log(
+      JSON.stringify({
+        timestamp: new Date().toISOString(),
+        level: 'ERROR',
+        message: 'Logger error occurred',
+        error: error.message,
+        originalMessage: message,
+      })
+    );
+  }
 };
 
 /**

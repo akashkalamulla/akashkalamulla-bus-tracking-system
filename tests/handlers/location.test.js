@@ -94,7 +94,7 @@ describe('Location Handler', () => {
       expect(result.statusCode).toBe(400);
 
       const body = JSON.parse(result.body);
-      expect(body.error.message).toBe('Invalid JSON in request body');
+      expect(body.error.message).toBe('Invalid JSON format in request body');
     });
   });
 });

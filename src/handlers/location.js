@@ -27,20 +27,33 @@ exports.updateLocation = async (event) => {
 
       // Handle both string and object body (for testing)
       if (typeof event.body === 'string') {
-        body = JSON.parse(event.body);
+        // Safely parse JSON with better error handling
+        try {
+          body = JSON.parse(event.body);
+        } catch (jsonError) {
+          logger.error('Invalid JSON in request body:', {
+            error: jsonError.message,
+            body: event.body.substring(0, 100), // Log only first 100 chars to avoid huge logs
+            bodyType: typeof event.body,
+          });
+          return errorResponse(HTTP_STATUS.BAD_REQUEST, 'Invalid JSON format in request body');
+        }
       } else if (typeof event.body === 'object') {
         // eslint-disable-next-line prefer-destructuring
         body = event.body;
       } else {
-        throw new Error('Invalid body type');
+        logger.error('Unsupported request body type:', {
+          bodyType: typeof event.body,
+          body: String(event.body).substring(0, 100),
+        });
+        return errorResponse(HTTP_STATUS.BAD_REQUEST, 'Unsupported request body format');
       }
     } catch (parseError) {
-      logger.error('Error parsing request body:', {
+      logger.error('Unexpected error parsing request body:', {
         error: parseError.message,
-        body: event.body,
         bodyType: typeof event.body,
       });
-      return errorResponse(HTTP_STATUS.BAD_REQUEST, 'Invalid JSON in request body');
+      return errorResponse(HTTP_STATUS.BAD_REQUEST, 'Failed to process request body');
     }
 
     const {
