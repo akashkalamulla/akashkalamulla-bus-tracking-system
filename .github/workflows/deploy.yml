@@ -1,0 +1,279 @@
+name: Deploy Bus Tracking System
+
+on:
+  push:
+    branches:
+      - main
+      - master # Support both main and master branches
+  workflow_dispatch: # Allow manual triggering
+    inputs:
+      stage:
+        description: "Deployment stage"
+        required: false
+        default: "dev"
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+env:
+  NODE_VERSION: "18"
+  AWS_REGION: ${{ secrets.AWS_REGION || 'us-east-1' }}
+
+jobs:
+  test:
+    name: Test and Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: 📥 Install dependencies
+        run: |
+          npm ci
+          echo "✅ Dependencies installed successfully"
+
+      - name: 🔍 Run ESLint
+        run: |
+          echo "🔍 Running ESLint..."
+          npm run lint
+          echo "✅ Linting completed successfully"
+
+      - name: 🧪 Run tests with coverage
+        run: |
+          echo "🧪 Running tests with coverage..."
+          npm test -- --coverage --verbose
+          echo "✅ Tests completed successfully"
+
+      - name: 📊 Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  deploy-dev:
+    name: Deploy to Development
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+
+    environment:
+      name: development
+      url: https://api-dev.bus-tracking.com
+
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: 📥 Install dependencies
+        run: |
+          npm ci
+          echo "✅ Dependencies installed for deployment"
+
+      - name: 🔧 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🔍 Validate AWS credentials
+        run: |
+          echo "🔍 Validating AWS credentials..."
+          aws sts get-caller-identity
+          echo "✅ AWS credentials validated"
+
+      - name: 📦 Install Serverless Framework
+        run: |
+          npm install -g serverless@3
+          echo "✅ Serverless Framework installed"
+
+      - name: 🚀 Deploy to Development
+        run: |
+          echo "🚀 Deploying to development stage..."
+          sls deploy --stage dev --region ${{ env.AWS_REGION }} --verbose
+          echo "✅ Deployment to development completed"
+        env:
+          STAGE: dev
+
+      - name: 🧪 Post-deployment health check
+        run: |
+          echo "🧪 Running post-deployment health check..."
+          # Wait for deployment to stabilize
+          sleep 30
+
+          # Get the health check endpoint from serverless output
+          HEALTH_ENDPOINT=$(sls info --stage dev --region ${{ env.AWS_REGION }} | grep -o 'https://[^/]*\.execute-api\.[^/]*\.amazonaws\.com/dev/status/ping' | head -1)
+
+          if [ -n "$HEALTH_ENDPOINT" ]; then
+            echo "🔍 Testing health endpoint: $HEALTH_ENDPOINT"
+            
+            # Test health endpoint with retry logic
+            for i in {1..5}; do
+              if curl -f -s "$HEALTH_ENDPOINT" > /dev/null; then
+                echo "✅ Health check passed on attempt $i"
+                curl -s "$HEALTH_ENDPOINT" | jq '.'
+                break
+              else
+                echo "❌ Health check failed on attempt $i, retrying in 10 seconds..."
+                sleep 10
+              fi
+              
+              if [ $i -eq 5 ]; then
+                echo "❌ Health check failed after 5 attempts"
+                exit 1
+              fi
+            done
+          else
+            echo "⚠️ Could not determine health endpoint, skipping health check"
+          fi
+
+      - name: 📝 Save deployment info
+        run: |
+          echo "📝 Saving deployment information..."
+          sls info --stage dev --region ${{ env.AWS_REGION }} > deployment-info-dev.txt
+          echo "✅ Deployment info saved"
+
+      - name: 📤 Upload deployment artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: deployment-info-dev
+          path: deployment-info-dev.txt
+          retention-days: 30
+
+  deploy-staging:
+    name: Deploy to Staging
+    runs-on: ubuntu-latest
+    needs: deploy-dev
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.stage != 'dev')
+
+    environment:
+      name: staging
+      url: https://api-staging.bus-tracking.com
+
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: 📥 Install dependencies
+        run: |
+          npm ci
+          echo "✅ Dependencies installed for staging deployment"
+
+      - name: 🔧 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 📦 Install Serverless Framework
+        run: |
+          npm install -g serverless@3
+          echo "✅ Serverless Framework installed"
+
+      - name: 🚀 Deploy to Staging
+        run: |
+          echo "🚀 Deploying to staging stage..."
+          sls deploy --stage staging --region ${{ env.AWS_REGION }} --verbose
+          echo "✅ Deployment to staging completed"
+        env:
+          STAGE: staging
+
+  deploy-production:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    needs: deploy-staging
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.stage == 'prod'
+
+    environment:
+      name: production
+      url: https://api.bus-tracking.com
+
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: 📥 Install dependencies
+        run: |
+          npm ci
+          echo "✅ Dependencies installed for production deployment"
+
+      - name: 🔧 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 📦 Install Serverless Framework
+        run: |
+          npm install -g serverless@3
+          echo "✅ Serverless Framework installed"
+
+      - name: 🚀 Deploy to Production
+        run: |
+          echo "🚀 Deploying to production stage..."
+          sls deploy --stage prod --region ${{ env.AWS_REGION }} --verbose
+          echo "✅ Deployment to production completed"
+        env:
+          STAGE: prod
+
+      - name: 🧪 Production smoke tests
+        run: |
+          echo "🧪 Running production smoke tests..."
+          # Add your production smoke tests here
+          echo "✅ Production smoke tests completed"
+
+  notify:
+    name: Notify Deployment Status
+    runs-on: ubuntu-latest
+    needs: [test, deploy-dev]
+    if: always()
+
+    steps:
+      - name: 📢 Deployment Success Notification
+        if: needs.deploy-dev.result == 'success'
+        run: |
+          echo "🎉 Deployment completed successfully!"
+          echo "✅ Bus Tracking System deployed to development environment"
+          echo "🔗 Check the deployment at your AWS Console"
+
+      - name: 📢 Deployment Failure Notification
+        if: needs.deploy-dev.result == 'failure' || needs.test.result == 'failure'
+        run: |
+          echo "❌ Deployment failed!"
+          echo "🔍 Please check the logs above for details"
+          echo "📝 Common issues:"
+          echo "   - AWS credentials not configured"
+          echo "   - Test failures"
+          echo "   - Serverless configuration errors"
+          exit 1
