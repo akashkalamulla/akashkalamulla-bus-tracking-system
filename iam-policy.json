@@ -1,0 +1,207 @@
+{
+    "Version": "2012-10-17",
+    "Statement": [{
+            "Sid": "CloudFormationPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "cloudformation:CreateStack",
+                "cloudformation:UpdateStack",
+                "cloudformation:DeleteStack",
+                "cloudformation:DescribeStacks",
+                "cloudformation:DescribeStackEvents",
+                "cloudformation:DescribeStackResources",
+                "cloudformation:GetTemplate",
+                "cloudformation:ValidateTemplate",
+                "cloudformation:ListStacks"
+            ],
+            "Resource": [
+                "arn:aws:cloudformation:*:*:stack/bus-tracking-system-*/*",
+                "arn:aws:cloudformation:*:*:stack/serverless-bus-tracking-system-*/*"
+            ]
+        },
+        {
+            "Sid": "LambdaPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "lambda:CreateFunction",
+                "lambda:UpdateFunctionCode",
+                "lambda:UpdateFunctionConfiguration",
+                "lambda:GetFunction",
+                "lambda:GetFunctionConfiguration",
+                "lambda:DeleteFunction",
+                "lambda:ListFunctions",
+                "lambda:InvokeFunction",
+                "lambda:PublishVersion",
+                "lambda:CreateAlias",
+                "lambda:UpdateAlias",
+                "lambda:GetAlias",
+                "lambda:ListAliases",
+                "lambda:ListVersionsByFunction",
+                "lambda:GetFunctionCodeSigningConfig",
+                "lambda:CreateEventSourceMapping",
+                "lambda:UpdateEventSourceMapping",
+                "lambda:DeleteEventSourceMapping",
+                "lambda:GetEventSourceMapping",
+                "lambda:ListEventSourceMappings"
+            ],
+            "Resource": [
+                "arn:aws:lambda:*:*:function:bus-tracking-system-*"
+            ]
+        },
+        {
+            "Sid": "APIGatewayPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "apigateway:POST",
+                "apigateway:PUT",
+                "apigateway:PATCH",
+                "apigateway:GET",
+                "apigateway:DELETE",
+                "apigateway:HEAD",
+                "apigateway:OPTIONS"
+            ],
+            "Resource": [
+                "arn:aws:apigateway:*::/apis/*",
+                "arn:aws:apigateway:*::/restapis/*",
+                "arn:aws:apigateway:*::/domainnames/*",
+                "arn:aws:apigateway:*::/basepathmappings/*",
+                "arn:aws:apigateway:*::/deployments/*",
+                "arn:aws:apigateway:*::/stages/*"
+            ]
+        },
+        {
+            "Sid": "DynamoDBPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:CreateTable",
+                "dynamodb:UpdateTable",
+                "dynamodb:DeleteTable",
+                "dynamodb:DescribeTable",
+                "dynamodb:ListTables",
+                "dynamodb:DescribeContinuousBackups",
+                "dynamodb:UpdateContinuousBackups",
+                "dynamodb:DescribeTimeToLive",
+                "dynamodb:UpdateTimeToLive",
+                "dynamodb:DescribeStream",
+                "dynamodb:GetRecords",
+                "dynamodb:GetShardIterator",
+                "dynamodb:ListStreams",
+                "dynamodb:EnableKinesisStreamingDestination",
+                "dynamodb:DisableKinesisStreamingDestination",
+                "dynamodb:DescribeKinesisStreamingDestination",
+                "dynamodb:Query",
+                "dynamodb:Scan",
+                "dynamodb:GetItem",
+                "dynamodb:PutItem",
+                "dynamodb:UpdateItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:BatchGetItem",
+                "dynamodb:BatchWriteItem",
+                "dynamodb:UpdateGlobalTable",
+                "dynamodb:DescribeGlobalTable",
+                "dynamodb:ListGlobalTables"
+            ],
+            "Resource": [
+                "arn:aws:dynamodb:*:*:table/bus-tracking-system-*-routes",
+                "arn:aws:dynamodb:*:*:table/bus-tracking-system-*-buses",
+                "arn:aws:dynamodb:*:*:table/bus-tracking-system-*-locations",
+                "arn:aws:dynamodb:*:*:table/bus-tracking-system-*-routes/index/*",
+                "arn:aws:dynamodb:*:*:table/bus-tracking-system-*-buses/index/*",
+                "arn:aws:dynamodb:*:*:table/bus-tracking-system-*-locations/index/*",
+                "arn:aws:dynamodb:*:*:table/bus-tracking-system-*-routes/stream/*",
+                "arn:aws:dynamodb:*:*:table/bus-tracking-system-*-buses/stream/*",
+                "arn:aws:dynamodb:*:*:table/bus-tracking-system-*-locations/stream/*"
+            ]
+        },
+        {
+            "Sid": "IAMPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "iam:CreateRole",
+                "iam:DeleteRole",
+                "iam:GetRole",
+                "iam:UpdateRole",
+                "iam:PassRole",
+                "iam:AttachRolePolicy",
+                "iam:DetachRolePolicy",
+                "iam:CreatePolicy",
+                "iam:DeletePolicy",
+                "iam:GetPolicy",
+                "iam:ListAttachedRolePolicies",
+                "iam:ListRolePolicies",
+                "iam:PutRolePolicy",
+                "iam:DeleteRolePolicy",
+                "iam:UpdateAssumeRolePolicy"
+            ],
+            "Resource": [
+                "arn:aws:iam::*:role/bus-tracking-system-*",
+                "arn:aws:iam::*:policy/bus-tracking-system-*"
+            ]
+        },
+        {
+            "Sid": "LogsPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "logs:CreateLogGroup",
+                "logs:DeleteLogGroup",
+                "logs:DescribeLogGroups",
+                "logs:CreateLogStream",
+                "logs:DeleteLogStream",
+                "logs:DescribeLogStreams",
+                "logs:PutLogEvents",
+                "logs:GetLogEvents",
+                "logs:FilterLogEvents"
+            ],
+            "Resource": [
+                "arn:aws:logs:*:*:log-group:/aws/lambda/bus-tracking-system-*:*",
+                "arn:aws:logs:*:*:log-group:/aws/apigateway/bus-tracking-system-*:*"
+            ]
+        },
+        {
+            "Sid": "S3Permissions",
+            "Effect": "Allow",
+            "Action": [
+                "s3:CreateBucket",
+                "s3:DeleteBucket",
+                "s3:GetBucketLocation",
+                "s3:GetBucketVersioning",
+                "s3:PutBucketVersioning",
+                "s3:GetBucketEncryption",
+                "s3:PutBucketEncryption",
+                "s3:ListBucket",
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject",
+                "s3:GetObjectVersion",
+                "s3:DeleteObjectVersion"
+            ],
+            "Resource": [
+                "arn:aws:s3:::bus-tracking-system-*",
+                "arn:aws:s3:::bus-tracking-system-*/*"
+            ]
+        },
+        {
+            "Sid": "CloudWatchPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "cloudwatch:PutMetricData",
+                "cloudwatch:GetMetricData",
+                "cloudwatch:ListMetrics",
+                "cloudwatch:DescribeAlarms",
+                "cloudwatch:PutMetricAlarm",
+                "cloudwatch:DeleteAlarms"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "STSPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "sts:GetCallerIdentity",
+                "sts:GetSessionToken",
+                "sts:GetAccessKeyInfo"
+            ],
+            "Resource": "*"
+        }
+    ]
+}
