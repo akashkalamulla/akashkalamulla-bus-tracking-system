@@ -1,0 +1,161 @@
+service: bus-tracking-system
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'us-east-1'}
+  
+  environment:
+    ROUTES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-routes
+    BUSES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-buses
+    LOCATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-locations
+    REDIS_HOST: ${self:custom.redis.${opt:stage, self:provider.stage}.host}
+    REDIS_PORT: ${self:custom.redis.${opt:stage, self:provider.stage}.port}
+    NODE_ENV: ${opt:stage, self:provider.stage}
+    
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - dynamodb:Query
+        - dynamodb:Scan
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+        - dynamodb:DeleteItem
+        - dynamodb:DescribeTable
+      Resource:
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.ROUTES_TABLE}"
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.BUSES_TABLE}"
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}"
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}/index/*"
+
+custom:
+  redis:
+    dev:
+      host: localhost
+      port: 6379
+    prod:
+      host: !GetAtt RedisCluster.RedisEndpoint.Address
+      port: !GetAtt RedisCluster.RedisEndpoint.Port
+      
+  dynamodb:
+    start:
+      port: 8000
+      inMemory: true
+      migrate: true
+    stages:
+      - dev
+
+functions:
+  getRoutes:
+    handler: src/handlers/routes.getRoutes
+    events:
+      - http:
+          path: routes
+          method: get
+          cors: true
+
+  getRoute:
+    handler: src/handlers/routes.getRoute
+    events:
+      - http:
+          path: routes/{routeId}
+          method: get
+          cors: true
+          request:
+            parameters:
+              paths:
+                routeId: true
+
+  updateLocation:
+    handler: src/handlers/location.updateLocation
+    events:
+      - http:
+          path: buses/{busId}/location
+          method: put
+          cors: true
+          request:
+            parameters:
+              paths:
+                busId: true
+
+  healthCheck:
+    handler: src/handlers/health.ping
+    events:
+      - http:
+          path: status/ping
+          method: get
+          cors: true
+
+  cacheInvalidator:
+    handler: src/handlers/cache.invalidateCache
+    events:
+      - stream:
+          type: dynamodb
+          arn:
+            Fn::GetAtt: [LocationsTable, StreamArn]
+          batchSize: 10
+          enabled: true
+
+resources:
+  Resources:
+    RoutesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.ROUTES_TABLE}
+        AttributeDefinitions:
+          - AttributeName: RouteID
+            AttributeType: S
+        KeySchema:
+          - AttributeName: RouteID
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        
+    BusesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.BUSES_TABLE}
+        AttributeDefinitions:
+          - AttributeName: BusID
+            AttributeType: S
+        KeySchema:
+          - AttributeName: BusID
+            KeyType: HASH
+        BillingMode: PAY_PER_REQUEST
+        
+    LocationsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.LOCATIONS_TABLE}
+        AttributeDefinitions:
+          - AttributeName: BusID
+            AttributeType: S
+          - AttributeName: timestamp
+            AttributeType: S
+          - AttributeName: route_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: BusID
+            KeyType: HASH
+          - AttributeName: timestamp
+            KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: RouteID-timestamp-index
+            KeySchema:
+              - AttributeName: route_id
+                KeyType: HASH
+              - AttributeName: timestamp
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
+
+plugins:
+  - serverless-offline
+  - serverless-dynamodb-local
