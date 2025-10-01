@@ -27,8 +27,7 @@ exports.invalidateCache = async (event) => {
         switch (eventName) {
           case 'INSERT':
           case 'MODIFY':
-          case 'REMOVE':
-          {
+          case 'REMOVE': {
             // Extract relevant keys from the record
             const keys = dynamodb?.Keys;
             if (keys) {

@@ -1,30 +1,21 @@
 // Jest setup file
-const AWSMock = require('aws-sdk-mock');
 
-// Mock AWS SDK before tests run
-beforeAll(() => {
-  // Mock DynamoDB
-  AWSMock.mock('DynamoDB.DocumentClient', 'get', (params, callback) => {
-    callback(null, { Item: { id: 'test-id', name: 'test-item' } });
-  });
-
-  AWSMock.mock('DynamoDB.DocumentClient', 'put', (params, callback) => {
-    callback(null, {});
-  });
-
-  AWSMock.mock('DynamoDB.DocumentClient', 'query', (params, callback) => {
-    callback(null, { Items: [], Count: 0 });
-  });
-
-  AWSMock.mock('DynamoDB.DocumentClient', 'scan', (params, callback) => {
-    callback(null, { Items: [], Count: 0 });
-  });
-});
-
-// Restore AWS SDK after tests
-afterAll(() => {
-  AWSMock.restore();
-});
+// Mock the DynamoDB service module for AWS SDK v3
+jest.mock('../src/services/dynamodb', () => ({
+    putItem: jest.fn().mockResolvedValue({}),
+    getItem: jest.fn().mockResolvedValue({
+        RouteID: 'route-001',
+        RouteName: 'Main Street Route',
+        Description: 'Test route description'
+    }),
+    scanTable: jest.fn().mockResolvedValue([
+        { RouteID: 'route-001', RouteName: 'Main Street Route' },
+        { RouteID: 'route-002', RouteName: 'Downtown Route' }
+    ]),
+    queryTable: jest.fn().mockResolvedValue({ Items: [], Count: 0 }),
+    updateItem: jest.fn().mockResolvedValue({}),
+    deleteItem: jest.fn().mockResolvedValue({}),
+}));
 
 // Set test environment variables
 process.env.NODE_ENV = 'test';

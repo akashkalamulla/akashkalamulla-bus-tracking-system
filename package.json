@@ -20,7 +20,8 @@
         "dynamodb:start": "sls dynamodb start"
     },
     "dependencies": {
-        "aws-sdk": "^2.1490.0",
+        "@aws-sdk/client-dynamodb": "^3.0.0",
+        "@aws-sdk/lib-dynamodb": "^3.0.0",
         "http-status-codes": "^2.3.0",
         "ioredis": "^5.3.2",
         "joi": "^17.13.3",
@@ -28,7 +29,6 @@
         "uuid": "^9.0.1"
     },
     "devDependencies": {
-        "aws-sdk-mock": "^5.9.0",
         "eslint": "^8.52.0",
         "eslint-config-airbnb-base": "^15.0.0",
         "eslint-plugin-import": "^2.32.0",
