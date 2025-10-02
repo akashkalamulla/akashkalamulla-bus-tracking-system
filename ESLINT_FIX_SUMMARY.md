@@ -44,7 +44,28 @@ This automatically:
 2. Verify the deployment proceeds without ESLint errors
 3. The deployment should complete successfully to AWS Mumbai region (ap-south-1)
 
-## NPM Vulnerability Fixes (Latest Update)
+## CloudFormation Template Fix (Latest Update)
+
+### Issue
+CloudFormation deployment was failing with error:
+```
+Template format error: Unrecognized resource types: [AWS::EC2::RouteTableAssociation]
+```
+
+### Resolution
+- **Incorrect Resource Type**: `AWS::EC2::RouteTableAssociation`
+- **Correct Resource Type**: `AWS::EC2::SubnetRouteTableAssociation`
+- **Files Changed**: `serverless.yml` (2 instances fixed)
+
+### Resources Updated
+1. `PublicSubnet1RouteTableAssociation` - Fixed resource type
+2. `PublicSubnet2RouteTableAssociation` - Fixed resource type
+
+Both resources now use the correct CloudFormation resource type for associating subnets with route tables.
+
+---
+
+## NPM Vulnerability Fixes
 
 ### Issue
 CI/CD pipeline was also failing due to 8 npm security vulnerabilities (1 low, 3 moderate, 1 high, 3 critical).
