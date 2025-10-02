@@ -5,15 +5,26 @@ provider:
   runtime: nodejs18.x
   stage: ${opt:stage, 'dev'}
   region: ${opt:region, 'us-east-1'}
-  
+  memorySize: 256
+  timeout: 30
+
+  # VPC Configuration for production (commented out for dev)
+  # vpc:
+  #   securityGroupIds:
+  #     - ${self:custom.securityGroup}
+  #   subnetIds:
+  #     - ${self:custom.privateSubnet1}
+  #     - ${self:custom.privateSubnet2}
+
   environment:
     ROUTES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-routes
     BUSES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-buses
     LOCATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-locations
+    LIVE_LOCATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-live-locations
     REDIS_HOST: ${self:custom.redis.${opt:stage, self:provider.stage}.host}
     REDIS_PORT: ${self:custom.redis.${opt:stage, self:provider.stage}.port}
     NODE_ENV: ${opt:stage, self:provider.stage}
-    
+
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -24,21 +35,48 @@ provider:
         - dynamodb:UpdateItem
         - dynamodb:DeleteItem
         - dynamodb:DescribeTable
+        - dynamodb:BatchWriteItem
+        - dynamodb:BatchGetItem
       Resource:
         - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.ROUTES_TABLE}"
         - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.BUSES_TABLE}"
         - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}"
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LIVE_LOCATIONS_TABLE}"
         - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}/index/*"
+        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LIVE_LOCATIONS_TABLE}/index/*"
+
+    - Effect: Allow
+      Action:
+        - logs:CreateLogGroup
+        - logs:CreateLogStream
+        - logs:PutLogEvents
+        - logs:DescribeLogStreams
+      Resource: "arn:aws:logs:${opt:region, self:provider.region}:*:log-group:/aws/lambda/${self:service}-${opt:stage, self:provider.stage}*:*"
+
+    # Redis ElastiCache permissions (only needed if using VPC)
+    # - Effect: Allow
+    #   Action:
+    #     - elasticache:DescribeCacheClusters
+    #     - elasticache:DescribeReplicationGroups
+    #   Resource: "*"
 
 custom:
+  # VPC Configuration (uncomment and configure for production)
+  # securityGroup: ${self:resources.Outputs.SecurityGroup}
+  # privateSubnet1: ${self:resources.Outputs.PrivateSubnet1}
+  # privateSubnet2: ${self:resources.Outputs.PrivateSubnet2}
+
   redis:
     dev:
       host: localhost
       port: 6379
+    staging:
+      host: localhost
+      port: 6379
     prod:
-      host: !GetAtt RedisCluster.RedisEndpoint.Address
-      port: !GetAtt RedisCluster.RedisEndpoint.Port
-      
+      host: ${self:resources.Outputs.RedisEndpointAddress}
+      port: ${self:resources.Outputs.RedisEndpointPort}
+
   dynamodb:
     start:
       port: 8000
@@ -50,6 +88,7 @@ custom:
 functions:
   getRoutes:
     handler: src/handlers/routes.getRoutes
+    description: Get all bus routes
     events:
       - http:
           path: routes
@@ -58,6 +97,7 @@ functions:
 
   getRoute:
     handler: src/handlers/routes.getRoute
+    description: Get a specific bus route by ID
     events:
       - http:
           path: routes/{routeId}
@@ -70,6 +110,7 @@ functions:
 
   updateLocation:
     handler: src/handlers/location.updateLocation
+    description: Update bus location
     events:
       - http:
           path: buses/{busId}/location
@@ -82,6 +123,7 @@ functions:
 
   healthCheck:
     handler: src/handlers/health.ping
+    description: Health check endpoint
     events:
       - http:
           path: status/ping
@@ -90,6 +132,7 @@ functions:
 
   cacheInvalidator:
     handler: src/handlers/cache.invalidateCache
+    description: DynamoDB stream processor for cache invalidation
     events:
       - stream:
           type: dynamodb
@@ -97,6 +140,7 @@ functions:
             Fn::GetAtt: [LocationsTable, StreamArn]
           batchSize: 10
           enabled: true
+          startingPosition: LATEST
 
 resources:
   Resources:
@@ -111,7 +155,7 @@ resources:
           - AttributeName: RouteID
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
-        
+
     BusesTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -123,7 +167,7 @@ resources:
           - AttributeName: BusID
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
-        
+
     LocationsTable:
       Type: AWS::DynamoDB::Table
       Properties:
@@ -156,6 +200,191 @@ resources:
           AttributeName: ttl
           Enabled: true
 
+    LiveLocationsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.LIVE_LOCATIONS_TABLE}
+        AttributeDefinitions:
+          - AttributeName: BusID
+            AttributeType: S
+          - AttributeName: timestamp
+            AttributeType: S
+        KeySchema:
+          - AttributeName: BusID
+            KeyType: HASH
+          - AttributeName: timestamp
+            KeyType: RANGE
+        BillingMode: PAY_PER_REQUEST
+        StreamSpecification:
+          StreamViewType: NEW_AND_OLD_IMAGES
+
+    # Redis ElastiCache Cluster (only for production)
+    RedisCluster:
+      Type: AWS::ElastiCache::CacheCluster
+      Condition: IsProduction
+      Properties:
+        CacheNodeType: cache.t3.micro
+        NumCacheNodes: 1
+        Engine: redis
+        EngineVersion: "7.0"
+        CacheSubnetGroupName: !Ref RedisSubnetGroup
+        VpcSecurityGroupIds:
+          - !Ref RedisSecurityGroup
+
+    RedisSubnetGroup:
+      Type: AWS::ElastiCache::SubnetGroup
+      Condition: IsProduction
+      Properties:
+        Description: Subnet group for Redis cluster
+        SubnetIds:
+          - !Ref PrivateSubnet1
+          - !Ref PrivateSubnet2
+
+    RedisSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Condition: IsProduction
+      Properties:
+        GroupDescription: Security group for Redis cluster
+        VpcId: !Ref VPC
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 6379
+            ToPort: 6379
+            SourceSecurityGroupId: !Ref LambdaSecurityGroup
+
+    # VPC Resources (only for production)
+    VPC:
+      Type: AWS::EC2::VPC
+      Condition: IsProduction
+      Properties:
+        CidrBlock: 10.0.0.0/16
+        EnableDnsHost: true
+        EnableDnsSupport: true
+
+    InternetGateway:
+      Type: AWS::EC2::InternetGateway
+      Condition: IsProduction
+
+    VPCGatewayAttachment:
+      Type: AWS::EC2::VPCGatewayAttachment
+      Condition: IsProduction
+      Properties:
+        VpcId: !Ref VPC
+        InternetGatewayId: !Ref InternetGateway
+
+    PublicSubnet1:
+      Type: AWS::EC2::Subnet
+      Condition: IsProduction
+      Properties:
+        VpcId: !Ref VPC
+        CidrBlock: 10.0.1.0/24
+        AvailabilityZone: !Select [0, !GetAZs ""]
+        MapPublicIpOnLaunch: true
+
+    PublicSubnet2:
+      Type: AWS::EC2::Subnet
+      Condition: IsProduction
+      Properties:
+        VpcId: !Ref VPC
+        CidrBlock: 10.0.2.0/24
+        AvailabilityZone: !Select [1, !GetAZs ""]
+        MapPublicIpOnLaunch: true
+
+    PrivateSubnet1:
+      Type: AWS::EC2::Subnet
+      Condition: IsProduction
+      Properties:
+        VpcId: !Ref VPC
+        CidrBlock: 10.0.3.0/24
+        AvailabilityZone: !Select [0, !GetAZs ""]
+
+    PrivateSubnet2:
+      Type: AWS::EC2::Subnet
+      Condition: IsProduction
+      Properties:
+        VpcId: !Ref VPC
+        CidrBlock: 10.0.4.0/24
+        AvailabilityZone: !Select [1, !GetAZs ""]
+
+    PublicRouteTable:
+      Type: AWS::EC2::RouteTable
+      Condition: IsProduction
+      Properties:
+        VpcId: !Ref VPC
+
+    PublicRoute:
+      Type: AWS::EC2::Route
+      Condition: IsProduction
+      Properties:
+        RouteTableId: !Ref PublicRouteTable
+        DestinationCidrBlock: 0.0.0.0/0
+        GatewayId: !Ref InternetGateway
+
+    PublicSubnet1RouteTableAssociation:
+      Type: AWS::EC2::RouteTableAssociation
+      Condition: IsProduction
+      Properties:
+        SubnetId: !Ref PublicSubnet1
+        RouteTableId: !Ref PublicRouteTable
+
+    PublicSubnet2RouteTableAssociation:
+      Type: AWS::EC2::RouteTableAssociation
+      Condition: IsProduction
+      Properties:
+        SubnetId: !Ref PublicSubnet2
+        RouteTableId: !Ref PublicRouteTable
+
+    LambdaSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Condition: IsProduction
+      Properties:
+        GroupDescription: Security group for Lambda functions
+        VpcId: !Ref VPC
+        SecurityGroupEgress:
+          - IpProtocol: tcp
+            FromPort: 0
+            ToPort: 65535
+            CidrIp: 0.0.0.0/0
+
+  Conditions:
+    IsProduction:
+      Fn::Equals:
+        - ${opt:stage, self:provider.stage}
+        - prod
+
+  Outputs:
+    RedisEndpointAddress:
+      Description: Redis cluster endpoint address
+      Value: !GetAtt RedisCluster.RedisEndpoint.Address
+      Condition: IsProduction
+
+    RedisEndpointPort:
+      Description: Redis cluster endpoint port
+      Value: !GetAtt RedisCluster.RedisEndpoint.Port
+      Condition: IsProduction
+
+    VPC:
+      Description: VPC ID
+      Value: !Ref VPC
+      Condition: IsProduction
+
+    PrivateSubnet1:
+      Description: Private subnet 1 ID
+      Value: !Ref PrivateSubnet1
+      Condition: IsProduction
+
+    PrivateSubnet2:
+      Description: Private subnet 2 ID
+      Value: !Ref PrivateSubnet2
+      Condition: IsProduction
+
+    SecurityGroup:
+      Description: Lambda security group ID
+      Value: !Ref LambdaSecurityGroup
+      Condition: IsProduction
+
 plugins:
   - serverless-offline
   - serverless-dynamodb-local
+  # Uncomment for production VPC deployment
+  # - serverless-vpc-plugin

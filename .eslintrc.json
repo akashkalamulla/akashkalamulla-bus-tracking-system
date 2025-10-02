@@ -17,18 +17,27 @@
     "func-names": "off",
     "object-shorthand": "off",
     "no-process-exit": "off",
-    "no-param-reassign": "off",
+    "no-param-reassign": ["error", { "props": false }],
     "no-return-await": "off",
     "no-underscore-dangle": "off",
     "class-methods-use-this": "off",
     "prefer-destructuring": ["error", {"object": true, "array": false}],
-    "no-unused-expressions": ["error", {"allowShortCircuit": true, "allowTernary": true}]
+    "no-unused-expressions": ["error", {"allowShortCircuit": true, "allowTernary": true}],
+    "comma-dangle": ["error", "always-multiline"],
+    "max-len": ["error", { "code": 120, "ignoreUrls": true, "ignoreStrings": true }],
+    "no-unused-vars": ["error", { "argsIgnorePattern": "^_" }],
+    "linebreak-style": ["error", "unix"],
+    "eol-last": ["error", "always"],
+    "import/no-unresolved": "off",
+    "import/extensions": "off"
   },
   "ignorePatterns": [
     "node_modules/",
     ".serverless/",
     "coverage/",
     "dist/",
-    "build/"
+    "build/",
+    "*.config.js",
+    "*.config.json"
   ]
 }

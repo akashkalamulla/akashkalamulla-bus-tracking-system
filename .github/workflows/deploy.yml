@@ -45,13 +45,13 @@ jobs:
       - name: 🔍 Run ESLint
         run: |
           echo "🔍 Running ESLint..."
-          npm run lint
+          npm run lint:ci
           echo "✅ Linting completed successfully"
 
       - name: 🧪 Run tests with coverage
         run: |
           echo "🧪 Running tests with coverage..."
-          npm test -- --coverage --verbose
+          npm run test:ci
           echo "✅ Tests completed successfully"
 
       - name: 📊 Upload coverage reports
@@ -106,7 +106,7 @@ jobs:
           npm ci
           echo "✅ Dependencies installed for deployment"
 
-      - name: � Configure AWS credentials
+      - name: 🔐 Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
@@ -316,174 +316,3 @@ jobs:
           echo "📋 Final Deployment Summary:"
           echo "==========================="
           serverless info --stage prod --region ${{ env.AWS_REGION }}
-                sleep 10
-              fi
-              
-              if [ $i -eq 5 ]; then
-                echo "❌ Health check failed after 5 attempts"
-                exit 1
-              fi
-            done
-          else
-            echo "⚠️ Could not determine health endpoint, skipping health check"
-          fi
-
-      - name: 📝 Save deployment info
-        run: |
-          echo "📝 Saving deployment information..."
-          sls info --stage dev --region ${{ env.AWS_REGION }} > deployment-info-dev.txt
-          echo "✅ Deployment info saved"
-
-      - name: 📤 Upload deployment artifacts
-        uses: actions/upload-artifact@v3
-        with:
-          name: deployment-info-dev
-          path: deployment-info-dev.txt
-          retention-days: 30
-
-  deploy-staging:
-    name: Deploy to Staging
-    runs-on: ubuntu-latest
-    needs: deploy-dev
-    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.stage != 'dev')
-
-    environment:
-      name: staging
-      url: https://api-staging.bus-tracking.com
-
-    steps:
-      - name: 📦 Checkout code
-        uses: actions/checkout@v4
-
-      - name: 🚀 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-
-      - name: 📥 Install dependencies
-        run: |
-          npm ci
-          echo "✅ Dependencies installed for staging deployment"
-
-      - name: 🔧 Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: 📦 Install Serverless Framework
-        run: |
-          npm install -g serverless@3
-          echo "✅ Serverless Framework installed"
-
-      - name: 🚀 Deploy to Staging
-        run: |
-          echo "🚀 Deploying to staging stage..."
-          sls deploy --stage staging --region ${{ env.AWS_REGION }} --verbose
-          echo "✅ Deployment to staging completed"
-        env:
-          STAGE: staging
-
-  deploy-production:
-    name: Deploy to Production
-    runs-on: ubuntu-latest
-    needs: deploy-staging
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.stage == 'prod'
-
-    environment:
-      name: production
-      url: https://api.bus-tracking.com
-
-    steps:
-      - name: 📦 Checkout code
-        uses: actions/checkout@v4
-
-      - name: 🚀 Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
-
-      - name: 📥 Install dependencies
-        run: |
-          npm ci
-          echo "✅ Dependencies installed for production deployment"
-
-      - name: 🔧 Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: 📦 Install Serverless Framework
-        run: |
-          npm install -g serverless@3
-          echo "✅ Serverless Framework installed"
-
-      - name: 🚀 Deploy to Production
-        run: |
-          echo "🚀 Deploying to production stage..."
-          sls deploy --stage prod --region ${{ env.AWS_REGION }} --verbose
-          echo "✅ Deployment to production completed"
-        env:
-          STAGE: prod
-
-      - name: 🧪 Production smoke tests
-        run: |
-          echo "🧪 Running production smoke tests..."
-          # Add your production smoke tests here
-          echo "✅ Production smoke tests completed"
-
-  notify:
-    name: Notify Deployment Status
-    runs-on: ubuntu-latest
-    needs: [test, deploy-dev]
-    if: always()
-
-    steps:
-      - name: � Debug Job Results
-        run: |
-          echo "📊 Job Results Summary:"
-          echo "Test Job Result: ${{ needs.test.result }}"
-          echo "Deploy Dev Job Result: ${{ needs.deploy-dev.result }}"
-
-      - name: �📢 Deployment Success Notification
-        if: needs.deploy-dev.result == 'success' && needs.test.result == 'success'
-        run: |
-          echo "🎉 Deployment completed successfully!"
-          echo "✅ Bus Tracking System deployed to development environment"
-          echo "🔗 Check the deployment at your AWS Console"
-
-      - name: 📢 Test Failure Notification
-        if: needs.test.result == 'failure'
-        run: |
-          echo "❌ Tests failed!"
-          echo "🔍 Please check the test logs above for details"
-          echo "📝 Common test issues:"
-          echo "   - Linting errors in code"
-          echo "   - Unit test failures"
-          echo "   - Syntax errors in JavaScript"
-
-      - name: 📢 Deployment Failure Notification
-        if: needs.deploy-dev.result == 'failure'
-        run: |
-          echo "❌ Deployment failed!"
-          echo "🔍 Please check the deployment logs above for details"
-          echo "📝 Common deployment issues:"
-          echo "   - AWS credentials not configured properly"
-          echo "   - Insufficient IAM permissions"
-          echo "   - Serverless configuration errors"
-          echo "   - Resource conflicts in AWS"
-
-      - name: 📢 Overall Status
-        run: |
-          if [[ "${{ needs.test.result }}" == "success" && "${{ needs.deploy-dev.result }}" == "success" ]]; then
-            echo "✅ All jobs completed successfully!"
-            exit 0
-          else
-            echo "❌ One or more jobs failed. Check the logs above."
-            exit 1
-          fi
