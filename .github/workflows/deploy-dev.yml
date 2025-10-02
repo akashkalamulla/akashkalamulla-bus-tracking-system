@@ -1,0 +1,100 @@
+name: Deploy Bus Tracking API to Development
+
+on:
+  push:
+    branches:
+      - dev
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "Deployment stage"
+        required: false
+        default: "dev"
+        type: choice
+        options:
+          - dev
+
+env:
+  NODE_VERSION: "18"
+  AWS_REGION: "us-east-1"
+  STAGE: ${{ github.event.inputs.stage || 'dev' }}
+
+jobs:
+  test-and-deploy:
+    name: Test and Deploy to Development
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📦 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🚀 Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
+
+      - name: 📥 Install dependencies
+        run: |
+          echo "📥 Installing dependencies..."
+          npm ci
+          echo "✅ Dependencies installed successfully"
+
+      - name: 🔍 Run ESLint
+        run: |
+          echo "🔍 Running ESLint..."
+          npm run lint:ci
+          echo "✅ Linting completed successfully"
+
+      - name: 🧪 Run Jest tests
+        run: |
+          echo "🧪 Running Jest tests..."
+          npm run test:ci
+          echo "✅ Tests completed successfully"
+
+      - name: 🔐 Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: 🔍 Validate AWS credentials
+        run: |
+          echo "🔍 Validating AWS credentials..."
+          aws sts get-caller-identity
+          echo "✅ AWS credentials validated"
+
+      - name: 🚀 Deploy to AWS using Serverless Framework
+        run: |
+          echo "🚀 Deploying to ${{ env.STAGE }} stage in ${{ env.AWS_REGION }}..."
+          npx sls deploy --stage ${{ env.STAGE }} --region ${{ env.AWS_REGION }}
+          echo "✅ Deployment completed successfully"
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ env.AWS_REGION }}
+
+      - name: 📊 Upload test coverage (on failure)
+        if: failure()
+        uses: codecov/codecov-action@v3
+        with:
+          file: ./coverage/lcov.info
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+      - name: 📝 Debug logs on failure
+        if: failure()
+        run: |
+          echo "❌ Deployment failed. Gathering debug information..."
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          echo "Serverless version: $(npx sls --version)"
+          echo "AWS region: ${{ env.AWS_REGION }}"
+          echo "Stage: ${{ env.STAGE }}"
+          echo "Last 50 lines of Serverless logs:"
+          # Assuming logs are in a file or can be retrieved; adjust as needed
+          ls -la
+          cat serverless.yml || echo "serverless.yml not found"</content>
+<parameter name="filePath">c:\Users\AKASH\Documents\NIbm Digree\WEBAPI\bus-tracking-system\.github\workflows\deploy-dev.yml

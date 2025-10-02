@@ -1,6 +1,7 @@
 {
     "Version": "2012-10-17",
-    "Statement": [{
+    "Statement": [
+        {
             "Sid": "CloudFormationPermissions",
             "Effect": "Allow",
             "Action": [
@@ -56,9 +57,7 @@
                 "apigateway:PUT",
                 "apigateway:PATCH",
                 "apigateway:GET",
-                "apigateway:DELETE",
-                "apigateway:HEAD",
-                "apigateway:OPTIONS"
+                "apigateway:DELETE"
             ],
             "Resource": [
                 "arn:aws:apigateway:*::/apis/*",
@@ -114,6 +113,51 @@
             ]
         },
         {
+            "Sid": "ElastiCachePermissions",
+            "Effect": "Allow",
+            "Action": [
+                "elasticache:CreateCacheCluster",
+                "elasticache:ModifyCacheCluster",
+                "elasticache:DeleteCacheCluster",
+                "elasticache:DescribeCacheClusters",
+                "elasticache:ListTagsForResource",
+                "elasticache:AddTagsToResource",
+                "elasticache:RemoveTagsFromResource",
+                "elasticache:CreateCacheSubnetGroup",
+                "elasticache:ModifyCacheSubnetGroup",
+                "elasticache:DeleteCacheSubnetGroup",
+                "elasticache:DescribeCacheSubnetGroups",
+                "elasticache:CreateReplicationGroup",
+                "elasticache:ModifyReplicationGroup",
+                "elasticache:DeleteReplicationGroup",
+                "elasticache:DescribeReplicationGroups"
+            ],
+            "Resource": [
+                "arn:aws:elasticache:*:*:cluster:bus-tracking-system-*",
+                "arn:aws:elasticache:*:*:subnetgroup:bus-tracking-system-*",
+                "arn:aws:elasticache:*:*:replicationgroup:bus-tracking-system-*"
+            ]
+        },
+        {
+            "Sid": "VPCPermissions",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:DescribeVpcs",
+                "ec2:DescribeSubnets",
+                "ec2:DescribeSecurityGroups",
+                "ec2:CreateSecurityGroup",
+                "ec2:DeleteSecurityGroup",
+                "ec2:AuthorizeSecurityGroupIngress",
+                "ec2:AuthorizeSecurityGroupEgress",
+                "ec2:RevokeSecurityGroupIngress",
+                "ec2:RevokeSecurityGroupEgress",
+                "ec2:CreateVpcEndpoint",
+                "ec2:DeleteVpcEndpoints",
+                "ec2:DescribeVpcEndpoints"
+            ],
+            "Resource": "*"
+        },
+        {
             "Sid": "IAMPermissions",
             "Effect": "Allow",
             "Action": [
@@ -121,7 +165,6 @@
                 "iam:DeleteRole",
                 "iam:GetRole",
                 "iam:UpdateRole",
-                "iam:PassRole",
                 "iam:AttachRolePolicy",
                 "iam:DetachRolePolicy",
                 "iam:CreatePolicy",
@@ -137,6 +180,22 @@
                 "arn:aws:iam::*:role/bus-tracking-system-*",
                 "arn:aws:iam::*:policy/bus-tracking-system-*"
             ]
+        },
+        {
+            "Sid": "IAMPassRolePermissions",
+            "Effect": "Allow",
+            "Action": "iam:PassRole",
+            "Resource": "arn:aws:iam::*:role/bus-tracking-system-*",
+            "Condition": {
+                "StringEquals": {
+                    "iam:PassedToService": [
+                        "lambda.amazonaws.com",
+                        "apigateway.amazonaws.com",
+                        "edgelambda.amazonaws.com",
+                        "events.amazonaws.com"
+                    ]
+                }
+            }
         },
         {
             "Sid": "LogsPermissions",
@@ -166,8 +225,8 @@
                 "s3:GetBucketLocation",
                 "s3:GetBucketVersioning",
                 "s3:PutBucketVersioning",
-                "s3:GetBucketEncryption",
-                "s3:PutBucketEncryption",
+                "s3:GetEncryptionConfiguration",
+                "s3:PutEncryptionConfiguration",
                 "s3:ListBucket",
                 "s3:GetObject",
                 "s3:PutObject",
