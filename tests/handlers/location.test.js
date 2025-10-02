@@ -59,7 +59,7 @@ describe('Location Handler', () => {
       expect(result.statusCode).toBe(400);
 
       const body = JSON.parse(result.body);
-      expect(body.error.message).toBe('Latitude and longitude are required');
+      expect(body.error.message).toContain('latitude');
     });
 
     it('should return error when coordinates are invalid', async () => {

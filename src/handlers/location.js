@@ -3,6 +3,7 @@ const { successResponse, errorResponse } = require('../utils/response');
 const logger = require('../utils/logger');
 const dynamodbService = require('../services/dynamodb');
 const { MESSAGES, HTTP_STATUS } = require('../config/constants');
+const { parseAndValidateBody } = require('../utils/request-parser');
 
 /**
  * Update bus location
@@ -17,44 +18,14 @@ exports.updateLocation = async (event) => {
       return errorResponse(HTTP_STATUS.BAD_REQUEST, 'Bus ID is required');
     }
 
-    // Parse request body with better error handling
-    let body;
-    try {
-      if (!event.body) {
-        logger.warn('Request body is empty');
-        return errorResponse(HTTP_STATUS.BAD_REQUEST, 'Request body is required');
-      }
+    // Parse request body using the new utility
+    const parseResult = parseAndValidateBody(event, ['latitude', 'longitude']);
 
-      // Handle both string and object body (for testing)
-      if (typeof event.body === 'string') {
-        // Safely parse JSON with better error handling
-        try {
-          body = JSON.parse(event.body);
-        } catch (jsonError) {
-          logger.error('Invalid JSON in request body:', {
-            error: jsonError.message,
-            body: event.body.substring(0, 100), // Log only first 100 chars to avoid huge logs
-            bodyType: typeof event.body,
-          });
-          return errorResponse(HTTP_STATUS.BAD_REQUEST, 'Invalid JSON format in request body');
-        }
-      } else if (typeof event.body === 'object') {
-        // eslint-disable-next-line prefer-destructuring
-        body = event.body;
-      } else {
-        logger.error('Unsupported request body type:', {
-          bodyType: typeof event.body,
-          body: String(event.body).substring(0, 100),
-        });
-        return errorResponse(HTTP_STATUS.BAD_REQUEST, 'Unsupported request body format');
-      }
-    } catch (parseError) {
-      logger.error('Unexpected error parsing request body:', {
-        error: parseError.message,
-        bodyType: typeof event.body,
-      });
-      return errorResponse(HTTP_STATUS.BAD_REQUEST, 'Failed to process request body');
+    if (!parseResult.success) {
+      return parseResult.error;
     }
+
+    const body = parseResult.data;
 
     const {
       latitude,

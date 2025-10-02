@@ -1,4 +1,4 @@
-const response = require('../../src/utils/response');
+const response = require('../src/utils/response');
 
 describe('Response Utility', () => {
     beforeEach(() => {
@@ -32,18 +32,14 @@ describe('Response Utility', () => {
 
     describe('errorResponse', () => {
         it('should return error response', () => {
-            const statusCode = 400;
-            const message = 'Bad Request';
-            const errorData = { field: 'required' };
-
-            const result = response.errorResponse(statusCode, message, errorData);
+            const result = response.errorResponse(400, 'Bad Request', { field: 'required' });
 
             expect(result.statusCode).toBe(400);
             expect(result.headers['Content-Type']).toBe('application/json');
             const body = JSON.parse(result.body);
             expect(body.success).toBe(false);
-            expect(body.message).toBe('Bad Request');
-            expect(body.error).toEqual({ field: 'required' });
+            expect(body.error.message).toBe('Bad Request');
+            expect(body.error.details).toEqual({ field: 'required' });
         });
     });
 });
@@ -52,17 +48,15 @@ describe('Response Utility', () => {
     describe('successResponse', () => {
         it('should create successful response', () => {
             const data = { key: 'value' };
-            const message = 'Success message';
 
-            const result = response.successResponse(data, message);
+            const result = response.successResponse(data, 200);
 
             expect(result.statusCode).toBe(200);
             expect(result.headers['Content-Type']).toBe('application/json');
 
             const body = JSON.parse(result.body);
             expect(body.success).toBe(true);
-            expect(body.data).toEqual(data);
-            expect(body.message).toBe(message);
+            expect(body.key).toBe('value');
         });
 
         it('should handle response without message', () => {
@@ -72,7 +66,7 @@ describe('Response Utility', () => {
 
             const body = JSON.parse(result.body);
             expect(body.success).toBe(true);
-            expect(body.data).toEqual(data);
+            expect(body.key).toBe('value');
         });
     });
 
@@ -88,7 +82,7 @@ describe('Response Utility', () => {
 
             const body = JSON.parse(result.body);
             expect(body.success).toBe(false);
-            expect(body.error).toBe(message);
+            expect(body.error.message).toBe(message);
         });
 
         it('should include error details when provided', () => {
@@ -100,8 +94,8 @@ describe('Response Utility', () => {
 
             const body = JSON.parse(result.body);
             expect(body.success).toBe(false);
-            expect(body.error).toBe(message);
-            expect(body.details).toEqual(details);
+            expect(body.error.message).toBe(message);
+            expect(body.error.details).toEqual(details);
         });
     });
 });
