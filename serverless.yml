@@ -8,13 +8,8 @@ provider:
   memorySize: 256
   timeout: 30
 
-  # VPC Configuration for production (commented out for dev)
-  # vpc:
-  #   securityGroupIds:
-  #     - ${self:custom.securityGroup}
-  #   subnetIds:
-  #     - ${self:custom.privateSubnet1}
-  #     - ${self:custom.privateSubnet2}
+  # VPC Configuration (only for production stage)
+  vpc: ${self:custom.vpc.${opt:stage, self:provider.stage}}
 
   environment:
     ROUTES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-routes
@@ -62,18 +57,33 @@ provider:
         # Note: Additional deployment permissions are provided via the IAM policy
         # attached to the deployment user/role (see iam-policy.json)
 
-        # Redis ElastiCache permissions (only needed if using VPC)
-        # - Effect: Allow
-        #   Action:
-        #     - elasticache:DescribeCacheClusters
-        #     - elasticache:DescribeReplicationGroups
-        #   Resource: "*"
+        # VPC and ENI permissions for Lambda functions
+        - Effect: Allow
+          Action:
+            - ec2:CreateNetworkInterface
+            - ec2:DescribeNetworkInterfaces
+            - ec2:DeleteNetworkInterface
+            - ec2:AttachNetworkInterface
+            - ec2:DetachNetworkInterface
+          Resource: "*"
+
+        # Redis ElastiCache permissions
+        - Effect: Allow
+          Action:
+            - elasticache:DescribeCacheClusters
+            - elasticache:DescribeReplicationGroups
+          Resource: "*"
 
 custom:
-  # VPC Configuration (uncomment and configure for production)
-  # securityGroup: ${self:resources.Outputs.SecurityGroup}
-  # privateSubnet1: ${self:resources.Outputs.PrivateSubnet1}
-  # privateSubnet2: ${self:resources.Outputs.PrivateSubnet2}
+  vpc:
+    dev: {}  # No VPC for dev stage
+    staging: {}  # No VPC for staging stage
+    prod:
+      securityGroupIds:
+        - !Ref LambdaSecurityGroup
+      subnetIds:
+        - !Ref PrivateSubnet1
+        - !Ref PrivateSubnet2
 
   redis:
     dev:
@@ -83,8 +93,8 @@ custom:
       host: localhost
       port: 6379
     prod:
-      host: ${self:resources.Outputs.RedisEndpointAddress}
-      port: ${self:resources.Outputs.RedisEndpointPort}
+      host: !GetAtt RedisCluster.RedisEndpoint.Address
+      port: !GetAtt RedisCluster.RedisEndpoint.Port
 
   dynamodb:
     start:
@@ -249,30 +259,25 @@ resources:
           - !Ref PrivateSubnet1
           - !Ref PrivateSubnet2
 
-    RedisSecurityGroup:
-      Type: AWS::EC2::SecurityGroup
-      Condition: IsProduction
-      Properties:
-        GroupDescription: Security group for Redis cluster
-        VpcId: !Ref VPC
-        SecurityGroupIngress:
-          - IpProtocol: tcp
-            FromPort: 6379
-            ToPort: 6379
-            SourceSecurityGroupId: !Ref LambdaSecurityGroup
-
-    # VPC Resources (only for production)
+    # VPC Infrastructure
     VPC:
       Type: AWS::EC2::VPC
       Condition: IsProduction
       Properties:
         CidrBlock: 10.0.0.0/16
-        EnableDnsHost: true
+        EnableDnsHostnames: true
         EnableDnsSupport: true
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${opt:stage, self:provider.stage}-vpc
 
     InternetGateway:
       Type: AWS::EC2::InternetGateway
       Condition: IsProduction
+      Properties:
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${opt:stage, self:provider.stage}-igw
 
     VPCGatewayAttachment:
       Type: AWS::EC2::VPCGatewayAttachment
@@ -281,6 +286,7 @@ resources:
         VpcId: !Ref VPC
         InternetGatewayId: !Ref InternetGateway
 
+    # Public Subnets
     PublicSubnet1:
       Type: AWS::EC2::Subnet
       Condition: IsProduction
@@ -289,6 +295,9 @@ resources:
         CidrBlock: 10.0.1.0/24
         AvailabilityZone: !Select [0, !GetAZs ""]
         MapPublicIpOnLaunch: true
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${opt:stage, self:provider.stage}-public-subnet-1
 
     PublicSubnet2:
       Type: AWS::EC2::Subnet
@@ -298,32 +307,68 @@ resources:
         CidrBlock: 10.0.2.0/24
         AvailabilityZone: !Select [1, !GetAZs ""]
         MapPublicIpOnLaunch: true
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${opt:stage, self:provider.stage}-public-subnet-2
 
+    # Private Subnets
     PrivateSubnet1:
       Type: AWS::EC2::Subnet
       Condition: IsProduction
       Properties:
         VpcId: !Ref VPC
-        CidrBlock: 10.0.3.0/24
+        CidrBlock: 10.0.10.0/24
         AvailabilityZone: !Select [0, !GetAZs ""]
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${opt:stage, self:provider.stage}-private-subnet-1
 
     PrivateSubnet2:
       Type: AWS::EC2::Subnet
       Condition: IsProduction
       Properties:
         VpcId: !Ref VPC
-        CidrBlock: 10.0.4.0/24
+        CidrBlock: 10.0.20.0/24
         AvailabilityZone: !Select [1, !GetAZs ""]
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${opt:stage, self:provider.stage}-private-subnet-2
 
+    # NAT Gateway
+    NatGatewayEIP:
+      Type: AWS::EC2::EIP
+      Condition: IsProduction
+      DependsOn: VPCGatewayAttachment
+      Properties:
+        Domain: vpc
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${opt:stage, self:provider.stage}-nat-eip
+
+    NatGateway:
+      Type: AWS::EC2::NatGateway
+      Condition: IsProduction
+      Properties:
+        AllocationId: !GetAtt NatGatewayEIP.AllocationId
+        SubnetId: !Ref PublicSubnet1
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${opt:stage, self:provider.stage}-nat-gateway
+
+    # Route Tables
     PublicRouteTable:
       Type: AWS::EC2::RouteTable
       Condition: IsProduction
       Properties:
         VpcId: !Ref VPC
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${opt:stage, self:provider.stage}-public-rt
 
     PublicRoute:
       Type: AWS::EC2::Route
       Condition: IsProduction
+      DependsOn: VPCGatewayAttachment
       Properties:
         RouteTableId: !Ref PublicRouteTable
         DestinationCidrBlock: 0.0.0.0/0
@@ -343,17 +388,110 @@ resources:
         SubnetId: !Ref PublicSubnet2
         RouteTableId: !Ref PublicRouteTable
 
+    PrivateRouteTable:
+      Type: AWS::EC2::RouteTable
+      Condition: IsProduction
+      Properties:
+        VpcId: !Ref VPC
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${opt:stage, self:provider.stage}-private-rt
+
+    PrivateRoute:
+      Type: AWS::EC2::Route
+      Condition: IsProduction
+      Properties:
+        RouteTableId: !Ref PrivateRouteTable
+        DestinationCidrBlock: 0.0.0.0/0
+        NatGatewayId: !Ref NatGateway
+
+    PrivateSubnet1RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Condition: IsProduction
+      Properties:
+        SubnetId: !Ref PrivateSubnet1
+        RouteTableId: !Ref PrivateRouteTable
+
+    PrivateSubnet2RouteTableAssociation:
+      Type: AWS::EC2::SubnetRouteTableAssociation
+      Condition: IsProduction
+      Properties:
+        SubnetId: !Ref PrivateSubnet2
+        RouteTableId: !Ref PrivateRouteTable
+
+    # Security Groups
+    ALBSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Condition: IsProduction
+      Properties:
+        GroupDescription: Security group for Application Load Balancer
+        VpcId: !Ref VPC
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+            Description: HTTP access from anywhere
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: 0.0.0.0/0
+            Description: HTTPS access from anywhere
+        SecurityGroupEgress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            DestinationSecurityGroupId: !Ref LambdaSecurityGroup
+            Description: HTTP to Lambda functions
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            DestinationSecurityGroupId: !Ref LambdaSecurityGroup
+            Description: HTTPS to Lambda functions
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${opt:stage, self:provider.stage}-alb-sg
+
     LambdaSecurityGroup:
       Type: AWS::EC2::SecurityGroup
       Condition: IsProduction
       Properties:
         GroupDescription: Security group for Lambda functions
         VpcId: !Ref VPC
-        SecurityGroupEgress:
+        SecurityGroupIngress:
           - IpProtocol: tcp
-            FromPort: 0
-            ToPort: 65535
+            FromPort: 80
+            ToPort: 80
+            SourceSecurityGroupId: !Ref ALBSecurityGroup
+            Description: HTTP from ALB
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            SourceSecurityGroupId: !Ref ALBSecurityGroup
+            Description: HTTPS from ALB
+        SecurityGroupEgress:
+          - IpProtocol: -1
             CidrIp: 0.0.0.0/0
+            Description: All outbound traffic
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${opt:stage, self:provider.stage}-lambda-sg
+
+    RedisSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Condition: IsProduction
+      Properties:
+        GroupDescription: Security group for Redis cluster
+        VpcId: !Ref VPC
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 6379
+            ToPort: 6379
+            SourceSecurityGroupId: !Ref LambdaSecurityGroup
+            Description: Redis access from Lambda functions
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${opt:stage, self:provider.stage}-redis-sg
 
   Conditions:
     IsProduction:
@@ -362,35 +500,82 @@ resources:
         - prod
 
   Outputs:
+    VPCId:
+      Description: VPC ID
+      Value: !Ref VPC
+      Condition: IsProduction
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-vpc-id
+
+    PublicSubnet1Id:
+      Description: Public subnet 1 ID
+      Value: !Ref PublicSubnet1
+      Condition: IsProduction
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-public-subnet-1
+
+    PublicSubnet2Id:
+      Description: Public subnet 2 ID
+      Value: !Ref PublicSubnet2
+      Condition: IsProduction
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-public-subnet-2
+
+    PrivateSubnet1Id:
+      Description: Private subnet 1 ID
+      Value: !Ref PrivateSubnet1
+      Condition: IsProduction
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-private-subnet-1
+
+    PrivateSubnet2Id:
+      Description: Private subnet 2 ID
+      Value: !Ref PrivateSubnet2
+      Condition: IsProduction
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-private-subnet-2
+
+    ALBSecurityGroupId:
+      Description: ALB security group ID
+      Value: !Ref ALBSecurityGroup
+      Condition: IsProduction
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-alb-sg
+
+    LambdaSecurityGroupId:
+      Description: Lambda security group ID
+      Value: !Ref LambdaSecurityGroup
+      Condition: IsProduction
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-lambda-sg
+
+    RedisSecurityGroupId:
+      Description: Redis security group ID
+      Value: !Ref RedisSecurityGroup
+      Condition: IsProduction
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-redis-sg
+
     RedisEndpointAddress:
       Description: Redis cluster endpoint address
       Value: !GetAtt RedisCluster.RedisEndpoint.Address
       Condition: IsProduction
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-redis-endpoint
 
     RedisEndpointPort:
       Description: Redis cluster endpoint port
       Value: !GetAtt RedisCluster.RedisEndpoint.Port
       Condition: IsProduction
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-redis-port
 
-    VPC:
-      Description: VPC ID
-      Value: !Ref VPC
+    NatGatewayId:
+      Description: NAT Gateway ID
+      Value: !Ref NatGateway
       Condition: IsProduction
-
-    PrivateSubnet1:
-      Description: Private subnet 1 ID
-      Value: !Ref PrivateSubnet1
-      Condition: IsProduction
-
-    PrivateSubnet2:
-      Description: Private subnet 2 ID
-      Value: !Ref PrivateSubnet2
-      Condition: IsProduction
-
-    SecurityGroup:
-      Description: Lambda security group ID
-      Value: !Ref LambdaSecurityGroup
-      Condition: IsProduction
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-nat-gateway
 
 plugins:
   - serverless-offline
