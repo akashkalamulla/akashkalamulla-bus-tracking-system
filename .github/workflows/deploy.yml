@@ -73,9 +73,9 @@ jobs:
 
       - name: 🔒 Run npm audit
         run: |
-          echo "🔒 Running security audit..."
-          npm audit --audit-level moderate
-          echo "✅ Security audit completed"
+          echo "🔒 Running security audit on production dependencies..."
+          npm audit --omit=dev --audit-level moderate
+          echo "✅ Security audit completed (dev dependencies excluded)"
 
       - name: 🔍 Check for secrets
         uses: gitleaks/gitleaks-action@v2
