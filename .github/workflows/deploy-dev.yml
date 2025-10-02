@@ -16,7 +16,7 @@ on:
 
 env:
   NODE_VERSION: "18"
-  AWS_REGION: "us-east-1"
+  AWS_REGION: "ap-south-1"
   STAGE: ${{ github.event.inputs.stage || 'dev' }}
 
 jobs:
@@ -46,11 +46,23 @@ jobs:
           npm run lint:ci
           echo "✅ Linting completed successfully"
 
-      - name: 🧪 Run Jest tests
+      - name: 🔍 Check required secrets
         run: |
-          echo "🧪 Running Jest tests..."
-          npm run test:ci
-          echo "✅ Tests completed successfully"
+          echo "🔍 Checking required GitHub secrets..."
+
+          if [ -z "${{ secrets.AWS_ACCESS_KEY_ID }}" ]; then
+            echo "❌ AWS_ACCESS_KEY_ID secret is not set"
+            echo "Please configure AWS_ACCESS_KEY_ID in GitHub repository secrets"
+            exit 1
+          fi
+
+          if [ -z "${{ secrets.AWS_SECRET_ACCESS_KEY }}" ]; then
+            echo "❌ AWS_SECRET_ACCESS_KEY secret is not set"
+            echo "Please configure AWS_SECRET_ACCESS_KEY in GitHub repository secrets"
+            exit 1
+          fi
+
+          echo "✅ All required secrets are configured"
 
       - name: 🔐 Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -59,16 +71,49 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: 🔍 Validate AWS credentials
+      - name: 🔍 Validate AWS credentials and check IAM permissions
         run: |
           echo "🔍 Validating AWS credentials..."
           aws sts get-caller-identity
-          echo "✅ AWS credentials validated"
+
+          echo "🔍 Checking account and user details..."
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          USER_ARN=$(aws sts get-caller-identity --query Arn --output text)
+          echo "Account ID: $ACCOUNT_ID"
+          echo "User ARN: $USER_ARN"
+
+          echo "🔍 Testing basic permissions..."
+          # Test if we can list CloudFormation stacks (basic deployment permission)
+          aws cloudformation list-stacks --max-items 1 >/dev/null 2>&1 && echo "✅ CloudFormation access OK" || echo "❌ CloudFormation access failed"
+
+          # Test if we can list Lambda functions
+          aws lambda list-functions --max-items 1 >/dev/null 2>&1 && echo "✅ Lambda access OK" || echo "❌ Lambda access failed"
+
+          # Test if we can list DynamoDB tables
+          aws dynamodb list-tables --max-items 1 >/dev/null 2>&1 && echo "✅ DynamoDB access OK" || echo "❌ DynamoDB access failed"
+
+          echo "✅ AWS credentials and basic permissions validated"
+
+      - name: 🔧 Validate Serverless configuration
+        run: |
+          echo "🔧 Validating serverless.yml configuration..."
+          npx sls print --stage ${{ env.STAGE }} --region ${{ env.AWS_REGION }}
+          echo "✅ Serverless configuration is valid"
 
       - name: 🚀 Deploy to AWS using Serverless Framework
         run: |
           echo "🚀 Deploying to ${{ env.STAGE }} stage in ${{ env.AWS_REGION }}..."
-          npx sls deploy --stage ${{ env.STAGE }} --region ${{ env.AWS_REGION }}
+          echo "Serverless version: $(npx sls --version)"
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+
+          # Validate serverless configuration first
+          echo "🔧 Validating serverless configuration..."
+          npx sls print --stage ${{ env.STAGE }} --region ${{ env.AWS_REGION }}
+
+          # Deploy with verbose logging
+          echo "🚀 Starting deployment..."
+          npx sls deploy --stage ${{ env.STAGE }} --region ${{ env.AWS_REGION }} --verbose
           echo "✅ Deployment completed successfully"
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}

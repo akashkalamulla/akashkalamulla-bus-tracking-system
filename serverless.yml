@@ -4,7 +4,7 @@ provider:
   name: aws
   runtime: nodejs18.x
   stage: ${opt:stage, 'dev'}
-  region: ${opt:region, 'us-east-1'}
+  region: ${opt:region, 'ap-south-1'}
   memorySize: 256
   timeout: 30
 
@@ -25,40 +25,49 @@ provider:
     REDIS_PORT: ${self:custom.redis.${opt:stage, self:provider.stage}.port}
     NODE_ENV: ${opt:stage, self:provider.stage}
 
-  iamRoleStatements:
-    - Effect: Allow
-      Action:
-        - dynamodb:Query
-        - dynamodb:Scan
-        - dynamodb:GetItem
-        - dynamodb:PutItem
-        - dynamodb:UpdateItem
-        - dynamodb:DeleteItem
-        - dynamodb:DescribeTable
-        - dynamodb:BatchWriteItem
-        - dynamodb:BatchGetItem
-      Resource:
-        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.ROUTES_TABLE}"
-        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.BUSES_TABLE}"
-        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}"
-        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LIVE_LOCATIONS_TABLE}"
-        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}/index/*"
-        - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LIVE_LOCATIONS_TABLE}/index/*"
+  iam:
+    role:
+      name: bus-tracking-system-${opt:stage, self:provider.stage}-lambda-role
+      path: /
+      statements:
+        # Runtime permissions for Lambda functions
+        - Effect: Allow
+          Action:
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:DescribeTable
+            - dynamodb:BatchWriteItem
+            - dynamodb:BatchGetItem
+          Resource:
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.ROUTES_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.BUSES_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LIVE_LOCATIONS_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}/index/*"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LIVE_LOCATIONS_TABLE}/index/*"
 
-    - Effect: Allow
-      Action:
-        - logs:CreateLogGroup
-        - logs:CreateLogStream
-        - logs:PutLogEvents
-        - logs:DescribeLogStreams
-      Resource: "arn:aws:logs:${opt:region, self:provider.region}:*:log-group:/aws/lambda/${self:service}-${opt:stage, self:provider.stage}*:*"
+        - Effect: Allow
+          Action:
+            - logs:CreateLogGroup
+            - logs:CreateLogStream
+            - logs:PutLogEvents
+            - logs:DescribeLogEvents
+            - logs:DescribeLogStreams
+          Resource: "arn:aws:logs:${opt:region, self:provider.region}:*:log-group:/aws/lambda/${self:service}-${opt:stage, self:provider.stage}*:*"
 
-    # Redis ElastiCache permissions (only needed if using VPC)
-    # - Effect: Allow
-    #   Action:
-    #     - elasticache:DescribeCacheClusters
-    #     - elasticache:DescribeReplicationGroups
-    #   Resource: "*"
+        # Note: Additional deployment permissions are provided via the IAM policy
+        # attached to the deployment user/role (see iam-policy.json)
+
+        # Redis ElastiCache permissions (only needed if using VPC)
+        # - Effect: Allow
+        #   Action:
+        #     - elasticache:DescribeCacheClusters
+        #     - elasticache:DescribeReplicationGroups
+        #   Resource: "*"
 
 custom:
   # VPC Configuration (uncomment and configure for production)
