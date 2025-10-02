@@ -88,12 +88,14 @@ Destination     Target
 ### Lambda Security Group
 ```yaml
 Ingress Rules:
-  - None (Lambda doesn't accept inbound connections)
+  - Protocol: TCP, Port: 80, Source: ALB Security Group (HTTP from ALB)
+  - Protocol: TCP, Port: 443, Source: ALB Security Group (HTTPS from ALB)
 
 Egress Rules:
-  - Protocol: TCP, Port: 6379, Source: ElastiCache Security Group (Redis)
-  - Protocol: TCP, Port: 443, Source: 0.0.0.0/0 (HTTPS - DynamoDB, APIs)
-  - Protocol: TCP, Port: 80, Source: 0.0.0.0/0 (HTTP - if needed)
+  - Protocol: TCP, Port: 6379, Destination: ElastiCache Security Group (Redis)
+  - Protocol: TCP, Port: 443, Destination: 0.0.0.0/0 (HTTPS - DynamoDB, APIs)
+  - Protocol: TCP, Port: 80, Destination: 0.0.0.0/0 (HTTP - if needed)
+  - Protocol: ALL, Destination: 0.0.0.0/0 (All outbound traffic for Lambda)
 ```
 
 ### ElastiCache Security Group
@@ -108,12 +110,17 @@ Egress Rules:
 ### ALB Security Group (if using ALB)
 ```yaml
 Ingress Rules:
-  - Protocol: TCP, Port: 80, Source: 0.0.0.0/0
-  - Protocol: TCP, Port: 443, Source: 0.0.0.0/0
+  - Protocol: TCP, Port: 80, Source: 0.0.0.0/0 (HTTP from internet)
+  - Protocol: TCP, Port: 443, Source: 0.0.0.0/0 (HTTPS from internet)
 
 Egress Rules:
-  - Protocol: TCP, Port: 80, Source: Lambda Security Group
-  - Protocol: TCP, Port: 443, Source: Lambda Security Group
+  - Protocol: TCP, Port: 80, Destination: Lambda Security Group (HTTP to Lambda)
+  - Protocol: TCP, Port: 443, Destination: Lambda Security Group (HTTPS to Lambda)
+
+Note: ALB→Lambda integration requires additional permissions:
+- Lambda:InvokeFunction permission for ALB service
+- Target Group configuration for Lambda functions
+- ALB listeners with appropriate rules and actions
 ```
 
 ---
@@ -150,6 +157,33 @@ Egress Rules:
 - **Security**: ALB Security Group
 - **Scheme**: Internet-facing
 - **Target**: Lambda functions via ALB-Lambda integration
+
+#### ALB-Lambda Integration Requirements
+For proper ALB→Lambda integration, you need:
+
+1. **Lambda Permissions**: Allow ALB to invoke Lambda functions
+   ```yaml
+   LambdaInvokePermission:
+     Type: AWS::Lambda::Permission
+     Properties:
+       FunctionName: !Ref LambdaFunction
+       Action: lambda:InvokeFunction
+       Principal: elasticloadbalancing.amazonaws.com
+   ```
+
+2. **Target Group Configuration**: 
+   ```yaml
+   LambdaTargetGroup:
+     Type: AWS::ElasticLoadBalancingV2::TargetGroup
+     Properties:
+       TargetType: lambda
+       Targets:
+         - Id: !GetAtt LambdaFunction.Arn
+   ```
+
+3. **ALB Listener Rules**: Configure listeners to route traffic to Lambda target groups
+
+**Note**: ALB→Lambda communication is not traditional TCP traffic through security groups, but uses AWS service-to-service communication with proper IAM permissions.
 
 ---
 
@@ -337,22 +371,70 @@ resources:
       Properties:
         GroupDescription: Security group for Lambda functions
         VpcId: !Ref VPC
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            SourceSecurityGroupId: !Ref ALBSecurityGroup
+            Description: HTTP from ALB
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            SourceSecurityGroupId: !Ref ALBSecurityGroup
+            Description: HTTPS from ALB
         SecurityGroupEgress:
           - IpProtocol: tcp
             FromPort: 6379
             ToPort: 6379
-            SourceSecurityGroupId: !Ref ElastiCacheSecurityGroup
+            DestinationSecurityGroupId: !Ref ElastiCacheSecurityGroup
+            Description: Redis access
           - IpProtocol: tcp
             FromPort: 443
             ToPort: 443
             CidrIp: 0.0.0.0/0
+            Description: HTTPS outbound (DynamoDB, APIs)
           - IpProtocol: tcp
             FromPort: 80
             ToPort: 80
             CidrIp: 0.0.0.0/0
+            Description: HTTP outbound
+          - IpProtocol: -1
+            CidrIp: 0.0.0.0/0
+            Description: All outbound traffic for Lambda operations
         Tags:
           - Key: Name
             Value: ${self:service}-${opt:stage}-lambda-sg
+
+    ALBSecurityGroup:
+      Type: AWS::EC2::SecurityGroup
+      Properties:
+        GroupDescription: Security group for Application Load Balancer
+        VpcId: !Ref VPC
+        SecurityGroupIngress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            CidrIp: 0.0.0.0/0
+            Description: HTTP from internet
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            CidrIp: 0.0.0.0/0
+            Description: HTTPS from internet
+        SecurityGroupEgress:
+          - IpProtocol: tcp
+            FromPort: 80
+            ToPort: 80
+            DestinationSecurityGroupId: !Ref LambdaSecurityGroup
+            Description: HTTP to Lambda functions
+          - IpProtocol: tcp
+            FromPort: 443
+            ToPort: 443
+            DestinationSecurityGroupId: !Ref LambdaSecurityGroup
+            Description: HTTPS to Lambda functions
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${opt:stage}-alb-sg
 
     ElastiCacheSecurityGroup:
       Type: AWS::EC2::SecurityGroup
@@ -395,6 +477,51 @@ resources:
           - Key: Name
             Value: ${self:service}-${opt:stage}-redis
 
+    # Application Load Balancer (Optional)
+    ApplicationLoadBalancer:
+      Type: AWS::ElasticLoadBalancingV2::LoadBalancer
+      Properties:
+        Name: ${self:service}-${opt:stage}-alb
+        Type: application
+        Scheme: internet-facing
+        SecurityGroups:
+          - !Ref ALBSecurityGroup
+        Subnets:
+          - !Ref PublicSubnet1
+          - !Ref PublicSubnet2
+        Tags:
+          - Key: Name
+            Value: ${self:service}-${opt:stage}-alb
+
+    # ALB Listener
+    ALBListener:
+      Type: AWS::ElasticLoadBalancingV2::Listener
+      Properties:
+        DefaultActions:
+          - Type: forward
+            TargetGroupArn: !Ref LambdaTargetGroup
+        LoadBalancerArn: !Ref ApplicationLoadBalancer
+        Port: 80
+        Protocol: HTTP
+
+    # Lambda Target Group
+    LambdaTargetGroup:
+      Type: AWS::ElasticLoadBalancingV2::TargetGroup
+      Properties:
+        Name: ${self:service}-${opt:stage}-lambda-tg
+        TargetType: lambda
+        Targets:
+          - Id: !GetAtt GetRoutesFunction.Arn  # Reference your Lambda function
+
+    # Lambda Permission for ALB
+    LambdaALBPermission:
+      Type: AWS::Lambda::Permission
+      Properties:
+        FunctionName: !Ref GetRoutesFunction  # Reference your Lambda function
+        Action: lambda:InvokeFunction
+        Principal: elasticloadbalancing.amazonaws.com
+        SourceArn: !Sub "${ApplicationLoadBalancer}/*/
+
   Outputs:
     VPCId:
       Description: VPC ID
@@ -431,6 +558,18 @@ resources:
       Value: !GetAtt ElastiCacheCluster.RedisEndpoint.Port
       Export:
         Name: ${self:service}-${opt:stage}-redis-port
+
+    ALBDNSName:
+      Description: Application Load Balancer DNS name
+      Value: !GetAtt ApplicationLoadBalancer.DNSName
+      Export:
+        Name: ${self:service}-${opt:stage}-alb-dns
+
+    ALBHostedZoneId:
+      Description: Application Load Balancer hosted zone ID
+      Value: !GetAtt ApplicationLoadBalancer.CanonicalHostedZoneID
+      Export:
+        Name: ${self:service}-${opt:stage}-alb-zone
 ```
 
 ---
@@ -526,7 +665,41 @@ PrivateSubnet2RouteTableAssociation:
 
 ---
 
-## 10. Troubleshooting Guide
+## 11. Security Group Configuration Notes
+
+### Important Corrections Made
+
+1. **Lambda Security Group**:
+   - **Ingress**: Added rules to allow inbound traffic from ALB (ports 80/443)
+   - **Egress**: Fixed to use `DestinationSecurityGroupId` instead of `SourceSecurityGroupId`
+   - **Egress**: Added comprehensive outbound rules for Redis, HTTPS, and general Lambda operations
+
+2. **ALB Security Group**:
+   - **Ingress**: Allows HTTP/HTTPS from internet (0.0.0.0/0)
+   - **Egress**: Uses correct `DestinationSecurityGroupId` to reference Lambda SG
+
+3. **Redis Security Group**:
+   - **Ingress**: Correctly configured to allow port 6379 from Lambda SG
+   - **Egress**: No egress rules needed (Redis doesn't initiate outbound connections)
+
+### ALB-Lambda Integration Requirements
+
+**Important**: ALB→Lambda integration is not pure TCP traffic through security groups. It requires:
+
+1. **IAM Permissions**: `lambda:InvokeFunction` permission for ALB service
+2. **Target Groups**: Lambda-type target groups with function ARNs
+3. **Listeners**: ALB listeners configured to forward to Lambda target groups
+4. **Security Groups**: While not strictly required for ALB-Lambda communication, they provide defense in depth
+
+### Security Group Rules Syntax
+
+- **Ingress Rules**: Use `SourceSecurityGroupId` to reference source security groups
+- **Egress Rules**: Use `DestinationSecurityGroupId` to reference destination security groups
+- **CIDR Rules**: Use `CidrIp` for IP-based rules (both ingress and egress)
+
+---
+
+## 12. Troubleshooting Guide
 
 ### Common Issues
 1. **Lambda Cold Starts**: VPC Lambdas have longer cold starts
