@@ -330,14 +330,14 @@ resources:
         GatewayId: !Ref InternetGateway
 
     PublicSubnet1RouteTableAssociation:
-      Type: AWS::EC2::RouteTableAssociation
+      Type: AWS::EC2::SubnetRouteTableAssociation
       Condition: IsProduction
       Properties:
         SubnetId: !Ref PublicSubnet1
         RouteTableId: !Ref PublicRouteTable
 
     PublicSubnet2RouteTableAssociation:
-      Type: AWS::EC2::RouteTableAssociation
+      Type: AWS::EC2::SubnetRouteTableAssociation
       Condition: IsProduction
       Properties:
         SubnetId: !Ref PublicSubnet2
