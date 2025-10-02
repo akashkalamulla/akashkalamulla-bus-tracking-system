@@ -1,0 +1,145 @@
+{
+  "routes": [
+    {
+      "RouteID": "route_001",
+      "route_name": "Colombo - Kandy Express",
+      "start_location": "Colombo Fort Bus Station",
+      "end_location": "Kandy Central Bus Station",
+      "description": "Direct express service connecting commercial capital Colombo to the cultural capital Kandy via scenic hill country route",
+      "total_stops": 12,
+      "from_city": "Colombo",
+      "to_city": "Kandy",
+      "route_type": "inter-provincial",
+      "distance_km": 120,
+      "estimated_duration_hours": 3.5,
+      "fare_rs": 450,
+      "service_frequency": "Every 30 minutes",
+      "created_at": "2025-01-15T08:00:00.000Z",
+      "updated_at": "2025-10-02T16:00:00.000Z"
+    },
+    {
+      "RouteID": "route_002", 
+      "route_name": "Colombo - Galle Coastal Express",
+      "start_location": "Colombo Central Bus Station",
+      "end_location": "Galle Bus Station",
+      "description": "Premium coastal highway service connecting Colombo to the historic southern port city of Galle",
+      "total_stops": 10,
+      "from_city": "Colombo",
+      "to_city": "Galle",
+      "route_type": "inter-provincial",
+      "distance_km": 116,
+      "estimated_duration_hours": 2.5,
+      "fare_rs": 320,
+      "service_frequency": "Every hour",
+      "created_at": "2025-01-15T08:00:00.000Z",
+      "updated_at": "2025-10-02T16:00:00.000Z"
+    }
+  ],
+  "buses": [
+    {
+      "BusID": "bus_001",
+      "route_id": "route_001",
+      "capacity": 50,
+      "license_plate": "WP-1234",
+      "status": "active",
+      "bus_model": "Tata LP 909",
+      "manufacture_year": 2022,
+      "fuel_type": "CNG",
+      "ac_available": true,
+      "wifi_available": true,
+      "gps_enabled": true,
+      "driver_name": "Priyantha Silva",
+      "conductor_name": "Sunil Perera",
+      "created_at": "2025-01-20T10:00:00.000Z",
+      "updated_at": "2025-10-02T16:00:00.000Z"
+    },
+    {
+      "BusID": "bus_002",
+      "route_id": "route_001", 
+      "capacity": 48,
+      "license_plate": "CP-5678",
+      "status": "active",
+      "bus_model": "Ashok Leyland Viking",
+      "manufacture_year": 2023,
+      "fuel_type": "Diesel",
+      "ac_available": false,
+      "wifi_available": false,
+      "gps_enabled": true,
+      "driver_name": "Kamal Fernando",
+      "conductor_name": "Ranjan Dias",
+      "created_at": "2025-01-20T10:00:00.000Z",
+      "updated_at": "2025-10-02T16:00:00.000Z"
+    },
+    {
+      "BusID": "bus_003",
+      "route_id": "route_002",
+      "capacity": 52,
+      "license_plate": "SP-9876",
+      "status": "maintenance",
+      "bus_model": "EICHER Pro 1110XP",
+      "manufacture_year": 2021,
+      "fuel_type": "CNG",
+      "ac_available": true,
+      "wifi_available": true,
+      "gps_enabled": true,
+      "driver_name": "Nimal Wickramasinghe",
+      "conductor_name": "Ajith Kumara",
+      "created_at": "2025-01-20T10:00:00.000Z",
+      "updated_at": "2025-10-02T16:00:00.000Z"
+    }
+  ],
+  "schedules": [
+    {
+      "ScheduleID": "schedule_001",
+      "BusID": "bus_001",
+      "route_id": "route_001",
+      "route_name": "Colombo - Kandy Express",
+      "schedule_date": "2025-10-02",
+      "day_of_week": "Thursday",
+      "trip_number": 1,
+      "trip_period": "morning",
+      "departure_time": "06:00",
+      "estimated_arrival_time": "09:30",
+      "trip_status": "scheduled",
+      "duration_hours": 3.5
+    },
+    {
+      "ScheduleID": "schedule_002",
+      "BusID": "bus_003",
+      "route_id": "route_002",
+      "route_name": "Colombo - Galle Coastal Express",
+      "schedule_date": "2025-10-02",
+      "day_of_week": "Thursday", 
+      "trip_number": 1,
+      "trip_period": "morning",
+      "departure_time": "07:00",
+      "estimated_arrival_time": "09:30",
+      "trip_status": "scheduled",
+      "duration_hours": 2.5
+    }
+  ],
+  "liveLocations": [
+    {
+      "BusID": "bus_001",
+      "timestamp": "2025-10-02T08:30:00.000Z",
+      "latitude": 7.2906,
+      "longitude": 80.6337,
+      "speed": 45,
+      "heading": 120,
+      "route_id": "route_001",
+      "geohash": "tdrz5k2j",
+      "ttl": 1728000000
+    },
+    {
+      "BusID": "bus_003",
+      "timestamp": "2025-10-02T08:45:00.000Z",
+      "latitude": 6.9271,
+      "longitude": 79.8612,
+      "speed": 55,
+      "heading": 180,
+      "route_id": "route_002",
+      "geohash": "tdr9m4kz",
+      "ttl": 1728000000
+    }
+  ]
+}

@@ -1,5 +1,8 @@
 service: bus-tracking-system
 
+# Configuration validation settings
+configValidationMode: error
+
 provider:
   name: aws
   runtime: nodejs18.x
@@ -8,9 +11,6 @@ provider:
   memorySize: 256
   timeout: 30
 
-  # VPC Configuration (only for production stage)
-  vpc: ${self:custom.vpc.${opt:stage, self:provider.stage}}
-
   environment:
     ROUTES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-routes
     BUSES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-buses
@@ -18,6 +18,16 @@ provider:
     LIVE_LOCATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-live-locations
     REDIS_HOST: ${self:custom.redis.${opt:stage, self:provider.stage}.host}
     REDIS_PORT: ${self:custom.redis.${opt:stage, self:provider.stage}.port}
+    REDIS_ENDPOINT: 
+      Fn::If:
+        - IsProduction
+        - Fn::GetAtt: [RedisReplicationGroup, PrimaryEndPoint.Address]
+        - "localhost"
+    REDIS_PORT_REF:
+      Fn::If:
+        - IsProduction
+        - Fn::GetAtt: [RedisReplicationGroup, PrimaryEndPoint.Port]
+        - 6379
     NODE_ENV: ${opt:stage, self:provider.stage}
 
   iam:
@@ -25,25 +35,31 @@ provider:
       name: bus-tracking-system-${opt:stage, self:provider.stage}-lambda-role
       path: /
       statements:
-        # Runtime permissions for Lambda functions
+        # DynamoDB permissions for all tables and indexes
         - Effect: Allow
           Action:
-            - dynamodb:Query
-            - dynamodb:Scan
             - dynamodb:GetItem
             - dynamodb:PutItem
+            - dynamodb:Query
+            - dynamodb:Scan
             - dynamodb:UpdateItem
             - dynamodb:DeleteItem
             - dynamodb:DescribeTable
             - dynamodb:BatchWriteItem
             - dynamodb:BatchGetItem
           Resource:
+            # Routes table and indexes
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.ROUTES_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.ROUTES_TABLE}/index/*"
+            # Buses table and indexes
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.BUSES_TABLE}"
-            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.BUSES_TABLE}/index/*"
+            # Live Locations table and indexes
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LIVE_LOCATIONS_TABLE}"
-            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}/index/*"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LIVE_LOCATIONS_TABLE}/index/*"
+            # Legacy locations table (if still needed)
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}/index/*"
 
         - Effect: Allow
           Action:
@@ -75,15 +91,6 @@ provider:
           Resource: "*"
 
 custom:
-  vpc:
-    dev: {}  # No VPC for dev stage
-    staging: {}  # No VPC for staging stage
-    prod:
-      securityGroupIds:
-        - !Ref LambdaSecurityGroup
-      subnetIds:
-        - !Ref PrivateSubnet1
-        - !Ref PrivateSubnet2
 
   redis:
     dev:
@@ -93,8 +100,8 @@ custom:
       host: localhost
       port: 6379
     prod:
-      host: !GetAtt RedisCluster.RedisEndpoint.Address
-      port: !GetAtt RedisCluster.RedisEndpoint.Port
+      host: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Address
+      port: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Port
 
   dynamodb:
     start:
@@ -174,6 +181,8 @@ resources:
           - AttributeName: RouteID
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
+        # Additional attributes: route_name, start_location, end_location, description, total_stops
+        # These are stored as document attributes and don't need to be defined in AttributeDefinitions
 
     BusesTable:
       Type: AWS::DynamoDB::Table
@@ -186,6 +195,8 @@ resources:
           - AttributeName: BusID
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
+        # Additional attributes: route_id, capacity, license_plate, status
+        # These are stored as document attributes and don't need to be defined in AttributeDefinitions
 
     LocationsTable:
       Type: AWS::DynamoDB::Table
@@ -228,27 +239,50 @@ resources:
             AttributeType: S
           - AttributeName: timestamp
             AttributeType: S
+          - AttributeName: route_id
+            AttributeType: S
         KeySchema:
           - AttributeName: BusID
             KeyType: HASH
           - AttributeName: timestamp
             KeyType: RANGE
+        GlobalSecondaryIndexes:
+          - IndexName: RouteID-timestamp-index
+            KeySchema:
+              - AttributeName: route_id
+                KeyType: HASH
+              - AttributeName: timestamp
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
         BillingMode: PAY_PER_REQUEST
         StreamSpecification:
           StreamViewType: NEW_AND_OLD_IMAGES
+        TimeToLiveSpecification:
+          AttributeName: ttl
+          Enabled: true
+        # Additional attributes: latitude, longitude, speed, heading, geohash
+        # These are stored as document attributes and don't need to be defined in AttributeDefinitions
 
-    # Redis ElastiCache Cluster (only for production)
-    RedisCluster:
-      Type: AWS::ElastiCache::CacheCluster
+    # Redis ElastiCache Replication Group (only for production)
+    RedisReplicationGroup:
+      Type: AWS::ElastiCache::ReplicationGroup
       Condition: IsProduction
       Properties:
+        ReplicationGroupId: ${self:service}-${opt:stage, self:provider.stage}-redis
+        Description: Redis replication group for bus tracking system
         CacheNodeType: cache.t3.micro
-        NumCacheNodes: 1
         Engine: redis
         EngineVersion: "7.0"
+        NumCacheClusters: 2  # 1 primary + 1 replica
+        AutomaticFailoverEnabled: false
+        MultiAZEnabled: false
         CacheSubnetGroupName: !Ref RedisSubnetGroup
-        VpcSecurityGroupIds:
+        SecurityGroupIds:
           - !Ref RedisSecurityGroup
+        AtRestEncryptionEnabled: true
+        TransitEncryptionEnabled: false  # Disabled to avoid auth token complexity
+        Port: 6379
 
     RedisSubnetGroup:
       Type: AWS::ElastiCache::SubnetGroup
@@ -438,16 +472,9 @@ resources:
             CidrIp: 0.0.0.0/0
             Description: HTTPS access from anywhere
         SecurityGroupEgress:
-          - IpProtocol: tcp
-            FromPort: 80
-            ToPort: 80
-            DestinationSecurityGroupId: !Ref LambdaSecurityGroup
-            Description: HTTP to Lambda functions
-          - IpProtocol: tcp
-            FromPort: 443
-            ToPort: 443
-            DestinationSecurityGroupId: !Ref LambdaSecurityGroup
-            Description: HTTPS to Lambda functions
+          - IpProtocol: -1
+            CidrIp: 0.0.0.0/0
+            Description: All outbound traffic
         Tags:
           - Key: Name
             Value: ${self:service}-${opt:stage, self:provider.stage}-alb-sg
@@ -557,15 +584,15 @@ resources:
         Name: ${self:service}-${opt:stage, self:provider.stage}-redis-sg
 
     RedisEndpointAddress:
-      Description: Redis cluster endpoint address
-      Value: !GetAtt RedisCluster.RedisEndpoint.Address
+      Description: Redis replication group primary endpoint address
+      Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Address
       Condition: IsProduction
       Export:
         Name: ${self:service}-${opt:stage, self:provider.stage}-redis-endpoint
 
     RedisEndpointPort:
-      Description: Redis cluster endpoint port
-      Value: !GetAtt RedisCluster.RedisEndpoint.Port
+      Description: Redis replication group primary endpoint port
+      Value: !GetAtt RedisReplicationGroup.PrimaryEndPoint.Port
       Condition: IsProduction
       Export:
         Name: ${self:service}-${opt:stage, self:provider.stage}-redis-port

@@ -26,6 +26,15 @@
         "remove:staging": "npx sls remove --stage staging --region ${AWS_REGION:-us-east-1}",
         "remove:prod": "npx sls remove --stage prod --region ${AWS_REGION:-us-east-1}",
         "seed:data": "node scripts/seed-data.js",
+        "generate-data": "node scripts/generate-data.js",
+        "load-data": "node scripts/load-data.js",
+        "generate-and-load": "npm run generate-data && npm run load-data",
+        "generate-and-load:local": "npm run generate-data && npm run load-data -- --local",
+        "load-data:local": "npm run load-data -- --local",
+        "load-data:dev": "npm run load-data -- --stage dev",
+        "load-data:staging": "npm run load-data -- --stage staging",
+        "load-data:prod": "npm run load-data -- --stage prod",
+        "test-load-data": "node scripts/test-load-data.js",
         "dynamodb:install": "npx sls dynamodb install",
         "dynamodb:start": "npx sls dynamodb start",
         "dynamodb:seed": "npx sls dynamodb seed",
@@ -34,15 +43,15 @@
         "prepare": "npm run build"
     },
     "dependencies": {
-        "@aws-sdk/client-dynamodb": "^3.0.0",
-        "@aws-sdk/lib-dynamodb": "^3.0.0",
+        "@aws-sdk/client-dynamodb": "^3.901.0",
+        "@aws-sdk/lib-dynamodb": "^3.901.0",
         "http-status-codes": "^2.3.0",
         "ioredis": "^5.3.2",
         "joi": "^17.13.3",
-        "ngeohash": "^0.6.3",
-        "uuid": "^9.0.1"
+        "ngeohash": "^0.6.3"
     },
     "devDependencies": {
+        "@faker-js/faker": "^10.0.0",
         "eslint": "^8.52.0",
         "eslint-config-airbnb-base": "^15.0.0",
         "eslint-plugin-import": "^2.32.0",
@@ -51,7 +60,8 @@
         "serverless": "^3.35.0",
         "serverless-dynamodb-local": "^0.2.40",
         "serverless-offline": "^13.9.0",
-        "supertest": "^6.3.4"
+        "supertest": "^6.3.4",
+        "uuid": "^13.0.0"
     },
     "keywords": [
         "serverless",
