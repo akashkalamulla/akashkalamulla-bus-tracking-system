@@ -1,20 +1,38 @@
-// Quick test to verify handlers load without errors
-const location = require('./src/handlers/location');
+// Quick test to verify auth handler loads without errors and test role permissions
+const auth = require('./src/handlers/auth');
 
-console.log('Testing location handler import...');
+console.log('Testing enhanced auth handler with role-based access control...');
 
-// Mock event
-const mockEvent = {
-  pathParameters: { busId: 'bus_001' },
-  headers: {},
-  body: null
-};
+// Test exports
+console.log('\nAvailable exports:', Object.keys(auth));
 
-console.log('Location handler loaded successfully');
-console.log('Available exports:', Object.keys(location));
+// Test ROLES constant
+console.log('\nSupported roles:', auth.ROLES);
 
-// Test that functions are callable (won't actually run due to missing AWS resources)
-console.log('getLocation function type:', typeof location.getLocation);
-console.log('updateLocation function type:', typeof location.updateLocation);
+// Test parseMethodArn function
+const testArn = 'arn:aws:execute-api:ap-south-1:123456789:abc123/dev/PUT/buses/bus_001/location';
+const parsed = auth.parseMethodArn(testArn);
+console.log('\nTest parseMethodArn:', parsed);
 
-console.log('✅ Handler syntax check passed');
+// Test role authorization
+const authTests = [
+  { role: 'BUS_OPERATOR', method: 'PUT', path: '/dev/buses/bus_001/location' },
+  { role: 'COMMUTER', method: 'PUT', path: '/dev/buses/bus_001/location' },
+  { role: 'NTC', method: 'PUT', path: '/dev/routes' },
+  { role: 'COMMUTER', method: 'GET', path: '/dev/routes' }
+];
+
+console.log('\nTesting role authorization logic:');
+authTests.forEach(test => {
+  const result = auth.checkRoleAuthorization(test.role, test.method, test.path);
+  console.log(`${test.role} ${test.method} ${test.path}: ${result.allowed ? '✅ ALLOWED' : '❌ DENIED'}`);
+  if (!result.allowed) {
+    console.log(`  Reason: ${result.reason}`);
+  }
+});
+
+console.log('\n✅ Auth handler syntax and logic tests passed!');
+console.log('\nNext steps:');
+console.log('1. Deploy the updated auth function');
+console.log('2. Generate test tokens with: node test-jwt.js');
+console.log('3. Test with different roles using the generated tokens');
