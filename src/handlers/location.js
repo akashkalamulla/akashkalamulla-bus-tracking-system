@@ -1,7 +1,8 @@
 const { v4: uuidv4 } = require('uuid');
 const { successResponse, errorResponse } = require('../utils/response');
-const logger = require('../utils/logger');
+const { error: logError, warn: logWarn, info: logInfo, debug: logDebug } = require('../utils/logger');
 const dynamodbService = require('../services/dynamodb');
+const redisService = require('../services/redis-service');
 const { MESSAGES, HTTP_STATUS } = require('../config/constants');
 const { parseAndValidateBody } = require('../utils/request-parser');
 
@@ -52,7 +53,7 @@ exports.updateLocation = async (event) => {
       return errorResponse(HTTP_STATUS.BAD_REQUEST, 'Longitude must be between -180 and 180');
     }
 
-    logger.info(`Updating location for bus ${busId}:`, { latitude, longitude, timestamp });
+    logInfo(`Updating location for bus ${busId}:`, { latitude, longitude, timestamp });
 
     // Create location data
     const locationData = {
@@ -70,9 +71,24 @@ exports.updateLocation = async (event) => {
     try {
       // Store location in DynamoDB
       await dynamodbService.putItem(process.env.LOCATIONS_TABLE, locationData);
-      logger.info(`Location stored successfully for bus ${busId}`);
+      logInfo(`Location stored successfully for bus ${busId}`);
+
+      // Cache the latest location in Redis with 5 minutes TTL
+      const cacheKey = `bus:${busId}:location`;
+      const cacheData = {
+        latitude,
+        longitude,
+        timestamp: locationData.timestamp,
+        speed: speed || 0,
+        heading: heading || 0,
+        updatedAt: new Date().toISOString()
+      };
+      
+      await redisService.set(cacheKey, JSON.stringify(cacheData), 300); // 5 minutes TTL
+      logInfo(`Location cached successfully for bus ${busId}`, { cacheKey });
+
     } catch (dbError) {
-      logger.error('Failed to store location in database:', dbError);
+      logError('Failed to store location in database:', dbError);
       return errorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Failed to store location data');
     }
 
@@ -93,7 +109,95 @@ exports.updateLocation = async (event) => {
       data: responseData,
     });
   } catch (error) {
-    logger.error('Error updating location:', error);
+    logError('Error updating location:', error);
+    return errorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Internal server error');
+  }
+};
+
+/**
+ * Get latest bus location (from cache first, then database)
+ * @param {Object} event - Lambda event object
+ * @returns {Object} HTTP response
+ */
+exports.getLocation = async (event) => {
+  try {
+    const { busId } = event.pathParameters || {};
+
+    if (!busId) {
+      return errorResponse(HTTP_STATUS.BAD_REQUEST, 'Bus ID is required');
+    }
+
+    logInfo(`Getting location for bus ${busId}`);
+
+    // Try to get from cache first
+    const cacheKey = `bus:${busId}:location`;
+    const cachedLocation = await redisService.get(cacheKey);
+
+    if (cachedLocation) {
+      logInfo(`Location found in cache for bus ${busId}`);
+      const locationData = JSON.parse(cachedLocation);
+      
+      return successResponse({
+        message: 'Location retrieved successfully',
+        data: {
+          busId,
+          location: locationData,
+          source: 'cache'
+        }
+      });
+    }
+
+    // If not in cache, get from database
+    logInfo(`Location not in cache, querying database for bus ${busId}`);
+    
+    try {
+      // Query DynamoDB for latest location using the service's queryTable helper
+      const queryParams = {
+        KeyConditionExpression: 'BusID = :busId',
+        ExpressionAttributeValues: {
+          ':busId': busId,
+        },
+        ScanIndexForward: false, // Get latest first
+        Limit: 1,
+      };
+
+      // queryTable returns an array of items
+      const items = await dynamodbService.queryTable(process.env.LOCATIONS_TABLE, queryParams);
+
+      if (!items || items.length === 0) {
+        return errorResponse(HTTP_STATUS.NOT_FOUND, `No location data found for bus ${busId}`);
+      }
+
+      const latestLocation = items[0];
+      const locationData = {
+        latitude: latestLocation.latitude,
+        longitude: latestLocation.longitude,
+        timestamp: latestLocation.timestamp,
+        speed: latestLocation.speed || 0,
+        heading: latestLocation.heading || 0,
+        updatedAt: latestLocation.createdAt
+      };
+
+      // Cache the result for future requests
+      await redisService.set(cacheKey, JSON.stringify(locationData), 300); // 5 minutes TTL
+      logInfo(`Location cached from database for bus ${busId}`);
+
+      return successResponse({
+        message: 'Location retrieved successfully',
+        data: {
+          busId,
+          location: locationData,
+          source: 'database'
+        }
+      });
+
+    } catch (dbError) {
+      logError('Failed to get location from database:', dbError);
+      return errorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Failed to retrieve location data');
+    }
+
+  } catch (error) {
+    logError('Error getting location:', error);
     return errorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Internal server error');
   }
 };

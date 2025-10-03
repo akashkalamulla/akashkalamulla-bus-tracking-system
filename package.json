@@ -46,9 +46,11 @@
         "@aws-sdk/client-dynamodb": "^3.901.0",
         "@aws-sdk/lib-dynamodb": "^3.901.0",
         "http-status-codes": "^2.3.0",
-        "ioredis": "^5.3.2",
+        "ioredis": "^5.8.0",
         "joi": "^17.13.3",
-        "ngeohash": "^0.6.3"
+        "jsonwebtoken": "^9.0.2",
+        "ngeohash": "^0.6.3",
+        "uuid": "^9.0.1"
     },
     "devDependencies": {
         "@faker-js/faker": "^10.0.0",
@@ -60,8 +62,7 @@
         "serverless": "^3.35.0",
         "serverless-dynamodb-local": "^0.2.40",
         "serverless-offline": "^13.9.0",
-        "supertest": "^6.3.4",
-        "uuid": "^13.0.0"
+        "supertest": "^6.3.4"
     },
     "keywords": [
         "serverless",

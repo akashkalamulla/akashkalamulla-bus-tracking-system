@@ -29,6 +29,25 @@ provider:
         - Fn::GetAtt: [RedisReplicationGroup, PrimaryEndPoint.Port]
         - 6379
     NODE_ENV: ${opt:stage, self:provider.stage}
+    JWT_SECRET: ${env:JWT_SECRET, 'dev-secret-key-change-in-production'}
+    REDIS_URL: ${env:REDIS_URL, ''}
+
+  # VPC configuration only for production
+  # vpc:
+  #   securityGroupIds:
+  #     - Fn::If:
+  #         - IsProduction
+  #         - Ref: LambdaSecurityGroup
+  #         - Ref: AWS::NoValue
+  #   subnetIds:
+  #     - Fn::If:
+  #         - IsProduction
+  #         - Ref: PrivateSubnet1
+  #         - Ref: AWS::NoValue
+  #     - Fn::If:
+  #         - IsProduction
+  #         - Ref: PrivateSubnet2
+  #         - Ref: AWS::NoValue
 
   iam:
     role:
@@ -142,6 +161,23 @@ functions:
           path: buses/{busId}/location
           method: put
           cors: true
+          authorizer:
+            name: auth
+            type: TOKEN
+            identitySource: method.request.header.Authorization
+          request:
+            parameters:
+              paths:
+                busId: true
+
+  getLocation:
+    handler: src/handlers/location.getLocation
+    description: Get latest bus location
+    events:
+      - http:
+          path: buses/{busId}/location
+          method: get
+          cors: true
           request:
             parameters:
               paths:
@@ -167,6 +203,10 @@ functions:
           batchSize: 10
           enabled: true
           startingPosition: LATEST
+
+  auth:
+    handler: src/handlers/auth.authorize
+    description: JWT Lambda Authorizer for API Gateway authentication
 
 resources:
   Resources:
