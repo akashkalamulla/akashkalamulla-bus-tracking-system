@@ -139,6 +139,67 @@ functions:
     description: JWT Lambda Authorizer for API Gateway authentication and RBAC
 
   # =============================================================================
+  # PUBLIC ENDPOINTS - No authentication required, aggressive caching
+  # =============================================================================
+  publicGetRoutes:
+    handler: src/handlers/public/routes.getRoutes
+    description: Public - Get all routes with pagination and caching (no auth required)
+    events:
+      - http:
+          path: public/routes
+          method: get
+          cors: true
+          # No authorizer - public endpoint
+
+  publicGetRoute:
+    handler: src/handlers/public/routes.getRoute
+    description: Public - Get specific route details with caching (no auth required)
+    events:
+      - http:
+          path: public/routes/{routeId}
+          method: get
+          cors: true
+          request:
+            parameters:
+              paths:
+                routeId: true
+          # No authorizer - public endpoint
+
+  publicGetLiveBuses:
+    handler: src/handlers/public/routes.getLiveBuses
+    description: Public - Get live buses on route with aggressive caching (no auth required)
+    events:
+      - http:
+          path: public/routes/{routeId}/buses/live
+          method: get
+          cors: true
+          request:
+            parameters:
+              paths:
+                routeId: true
+          # No authorizer - public endpoint
+
+  publicSearchRoutes:
+    handler: src/handlers/public/routes.searchRoutes
+    description: Public - Search routes by name or location (no auth required)
+    events:
+      - http:
+          path: public/routes/search
+          method: get
+          cors: true
+          # No authorizer - public endpoint
+
+  publicGetStats:
+    handler: src/handlers/public/routes.getPublicStats
+    description: Public - Get system statistics (no auth required)
+    events:
+      - http:
+          path: public/stats
+          method: get
+          cors: true
+          # No authorizer - public endpoint
+
+  # =============================================================================
   # PUBLIC ENDPOINTS (COMMUTER ROLE) - Read-only access
   # =============================================================================
   getRoutes:
@@ -424,6 +485,120 @@ functions:
                 busId: true
 
   # =============================================================================
+  # OPERATOR ENDPOINTS (BUS_OPERATOR role required)
+  # =============================================================================
+  operatorGetBuses:
+    handler: src/handlers/operator/buses.getBuses
+    description: Operator - Get all buses owned by operator (BUS_OPERATOR only)
+    events:
+      - http:
+          path: operator/buses
+          method: get
+          cors: true
+          authorizer:
+            name: auth
+            type: TOKEN
+            identitySource: method.request.header.Authorization
+
+  operatorGetBus:
+    handler: src/handlers/operator/buses.getBus
+    description: Operator - Get specific bus details (BUS_OPERATOR only)
+    events:
+      - http:
+          path: operator/buses/{busId}
+          method: get
+          cors: true
+          authorizer:
+            name: auth
+            type: TOKEN
+            identitySource: method.request.header.Authorization
+          request:
+            parameters:
+              paths:
+                busId: true
+
+  operatorCreateBus:
+    handler: src/handlers/operator/buses.createBus
+    description: Operator - Create new bus (BUS_OPERATOR only)
+    events:
+      - http:
+          path: operator/buses
+          method: post
+          cors: true
+          authorizer:
+            name: auth
+            type: TOKEN
+            identitySource: method.request.header.Authorization
+
+  operatorUpdateBus:
+    handler: src/handlers/operator/buses.updateBus
+    description: Operator - Update bus details (BUS_OPERATOR only)
+    events:
+      - http:
+          path: operator/buses/{busId}
+          method: put
+          cors: true
+          authorizer:
+            name: auth
+            type: TOKEN
+            identitySource: method.request.header.Authorization
+          request:
+            parameters:
+              paths:
+                busId: true
+
+  operatorDeleteBus:
+    handler: src/handlers/operator/buses.deleteBus
+    description: Operator - Delete bus (BUS_OPERATOR only)
+    events:
+      - http:
+          path: operator/buses/{busId}
+          method: delete
+          cors: true
+          authorizer:
+            name: auth
+            type: TOKEN
+            identitySource: method.request.header.Authorization
+          request:
+            parameters:
+              paths:
+                busId: true
+
+  operatorUpdateLocation:
+    handler: src/handlers/operator/buses.updateLocation
+    description: Operator - Update bus location with timestamp validation (BUS_OPERATOR only)
+    events:
+      - http:
+          path: operator/buses/{busId}/location
+          method: put
+          cors: true
+          authorizer:
+            name: auth
+            type: TOKEN
+            identitySource: method.request.header.Authorization
+          request:
+            parameters:
+              paths:
+                busId: true
+
+  operatorGetLocation:
+    handler: src/handlers/operator/buses.getLocation
+    description: Operator - Get current bus location (BUS_OPERATOR only)
+    events:
+      - http:
+          path: operator/buses/{busId}/location
+          method: get
+          cors: true
+          authorizer:
+            name: auth
+            type: TOKEN
+            identitySource: method.request.header.Authorization
+          request:
+            parameters:
+              paths:
+                busId: true
+
+  # =============================================================================
   # UTILITY ENDPOINTS
   # =============================================================================
   healthCheck:
@@ -473,9 +648,18 @@ resources:
         AttributeDefinitions:
           - AttributeName: BusID
             AttributeType: S
+          - AttributeName: OperatorID
+            AttributeType: S
         KeySchema:
           - AttributeName: BusID
             KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: OperatorIndex
+            KeySchema:
+              - AttributeName: OperatorID
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
         BillingMode: PAY_PER_REQUEST
         # Additional attributes: route_id, capacity, license_plate, status
         # These are stored as document attributes and don't need to be defined in AttributeDefinitions

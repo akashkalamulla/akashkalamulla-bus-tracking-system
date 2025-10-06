@@ -64,6 +64,52 @@ const ROLE_PERMISSIONS = [
   },
 
   // =============================================================================
+  // OPERATOR ENDPOINTS (BUS_OPERATOR ROLE) - Bus ownership management
+  // =============================================================================
+  {
+    pathPattern: /^\/[^\/]+\/operator\/buses$/,
+    method: 'GET',
+    allowedRoles: [ROLES.NTC, ROLES.BUS_OPERATOR],
+    description: 'Operator - Get owned buses - operators and NTC only'
+  },
+  {
+    pathPattern: /^\/[^\/]+\/operator\/buses$/,
+    method: 'POST',
+    allowedRoles: [ROLES.NTC, ROLES.BUS_OPERATOR],
+    description: 'Operator - Create new bus - operators and NTC only'
+  },
+  {
+    pathPattern: /^\/[^\/]+\/operator\/buses\/[^\/]+$/,
+    method: 'GET',
+    allowedRoles: [ROLES.NTC, ROLES.BUS_OPERATOR],
+    description: 'Operator - Get specific bus details - operators and NTC only'
+  },
+  {
+    pathPattern: /^\/[^\/]+\/operator\/buses\/[^\/]+$/,
+    method: 'PUT',
+    allowedRoles: [ROLES.NTC, ROLES.BUS_OPERATOR],
+    description: 'Operator - Update bus details - operators and NTC only'
+  },
+  {
+    pathPattern: /^\/[^\/]+\/operator\/buses\/[^\/]+$/,
+    method: 'DELETE',
+    allowedRoles: [ROLES.NTC, ROLES.BUS_OPERATOR],
+    description: 'Operator - Delete bus - operators and NTC only'
+  },
+  {
+    pathPattern: /^\/[^\/]+\/operator\/buses\/[^\/]+\/location$/,
+    method: 'GET',
+    allowedRoles: [ROLES.NTC, ROLES.BUS_OPERATOR],
+    description: 'Operator - Get bus location - operators and NTC only'
+  },
+  {
+    pathPattern: /^\/[^\/]+\/operator\/buses\/[^\/]+\/location$/,
+    method: 'PUT',
+    allowedRoles: [ROLES.NTC, ROLES.BUS_OPERATOR],
+    description: 'Operator - Update bus location - operators and NTC only'
+  },
+
+  // =============================================================================
   // ADMIN ENDPOINTS (NTC ROLE) - Full administrative access
   // =============================================================================
   // Admin Routes Management
@@ -270,6 +316,7 @@ exports.authorize = async (event) => {
     const userId = decoded.sub || decoded.userId || 'unknown-user';
     const userRole = decoded.role || 'COMMUTER'; // Default role if not specified
     const userEmail = decoded.email || '';
+    const operatorId = decoded.operatorId || (userRole === 'BUS_OPERATOR' ? userId : null);
     
     // Validate role
     if (!Object.values(ROLES).includes(userRole)) {
@@ -316,6 +363,7 @@ exports.authorize = async (event) => {
       userId,
       role: userRole,
       email: userEmail,
+      operatorId,
       authorizedAt: new Date().toISOString(),
       permissions: authResult.rule ? authResult.rule.description : 'Default permissions'
     };
@@ -403,6 +451,7 @@ function getUserContext(event) {
       userId: authorizer.userId || authorizer.principalId || 'unknown',
       role: authorizer.role || 'COMMUTER',
       email: authorizer.email || '',
+      operatorId: authorizer.operatorId || authorizer.userId || 'unknown', // Use operatorId or fallback to userId
       authorizedAt: authorizer.authorizedAt || '',
       permissions: authorizer.permissions || ''
     };
@@ -412,6 +461,7 @@ function getUserContext(event) {
       userId: 'unknown',
       role: 'COMMUTER',
       email: '',
+      operatorId: 'unknown',
       authorizedAt: '',
       permissions: ''
     };
