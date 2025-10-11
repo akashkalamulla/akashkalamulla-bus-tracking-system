@@ -16,6 +16,7 @@ provider:
     BUSES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-buses
     LOCATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-locations
     LIVE_LOCATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-live-locations
+    USERS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-users
     REDIS_HOST: ${self:custom.redis.${opt:stage, self:provider.stage}.host}
     REDIS_PORT: ${self:custom.redis.${opt:stage, self:provider.stage}.port}
     REDIS_ENDPOINT: 
@@ -79,6 +80,9 @@ provider:
             # Legacy locations table (if still needed)
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}/index/*"
+            # Users table and indexes
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.USERS_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.USERS_TABLE}/index/*"
 
         - Effect: Allow
           Action:
@@ -139,6 +143,56 @@ functions:
     description: JWT Lambda Authorizer for API Gateway authentication and RBAC
 
   # =============================================================================
+  # AUTHENTICATION ENDPOINTS - No authorization required
+  # =============================================================================
+  authRegister:
+    handler: src/handlers/auth-endpoints.register
+    description: User registration endpoint
+    events:
+      - http:
+          path: auth/register
+          method: post
+          cors: true
+
+  authLogin:
+    handler: src/handlers/auth-endpoints.login
+    description: User login endpoint
+    events:
+      - http:
+          path: auth/login
+          method: post
+          cors: true
+
+  authRefresh:
+    handler: src/handlers/auth-endpoints.refresh
+    description: JWT token refresh endpoint
+    events:
+      - http:
+          path: auth/refresh
+          method: post
+          cors: true
+
+  authProfile:
+    handler: src/handlers/auth-endpoints.getProfile
+    description: Get current user profile
+    events:
+      - http:
+          path: auth/profile
+          method: get
+          cors: true
+          authorizer: auth
+
+  authLogout:
+    handler: src/handlers/auth-endpoints.logout
+    description: User logout endpoint
+    events:
+      - http:
+          path: auth/logout
+          method: post
+          cors: true
+          authorizer: auth
+
+  # =============================================================================
   # PUBLIC ENDPOINTS - No authentication required, aggressive caching
   # =============================================================================
   publicGetRoutes:
@@ -149,8 +203,6 @@ functions:
           path: public/routes
           method: get
           cors: true
-          # private: true  # Temporarily disabled for base deployment
-          # No authorizer - public endpoint
 
   publicGetRoute:
     handler: src/handlers/public/routes.getRoute
@@ -160,12 +212,10 @@ functions:
           path: public/routes/{routeId}
           method: get
           cors: true
-          # private: true  # Temporarily disabled for base deployment
           request:
             parameters:
               paths:
                 routeId: true
-          # No authorizer - public endpoint
 
   publicGetLiveBuses:
     handler: src/handlers/public/routes.getLiveBuses
@@ -261,6 +311,7 @@ functions:
           path: buses/{busId}
           method: get
           cors: true
+          private: true  # Requires API key for rate limiting
           authorizer:
             name: auth
             type: TOKEN
@@ -278,6 +329,7 @@ functions:
           path: buses/{busId}
           method: put
           cors: true
+          private: true  # Requires API key for rate limiting
           authorizer:
             name: auth
             type: TOKEN
@@ -295,6 +347,7 @@ functions:
           path: buses/{busId}/location
           method: get
           cors: true
+          private: true  # Requires API key for rate limiting
           authorizer:
             name: auth
             type: TOKEN
@@ -312,6 +365,7 @@ functions:
           path: buses/{busId}/location
           method: put
           cors: true
+          private: true  # Requires API key for rate limiting
           authorizer:
             name: auth
             type: TOKEN
@@ -332,6 +386,7 @@ functions:
           path: admin/routes
           method: get
           cors: true
+          private: true  # Requires API key for rate limiting
           authorizer:
             name: auth
             type: TOKEN
@@ -345,6 +400,7 @@ functions:
           path: admin/routes/{routeId}
           method: get
           cors: true
+          private: true  # Requires API key for rate limiting
           authorizer:
             name: auth
             type: TOKEN
@@ -362,6 +418,7 @@ functions:
           path: admin/routes
           method: post
           cors: true
+          private: true  # Requires API key for rate limiting
           authorizer:
             name: auth
             type: TOKEN
@@ -375,6 +432,7 @@ functions:
           path: admin/routes/{routeId}
           method: put
           cors: true
+          private: true  # Requires API key for rate limiting
           authorizer:
             name: auth
             type: TOKEN
@@ -392,6 +450,7 @@ functions:
           path: admin/routes/{routeId}
           method: delete
           cors: true
+          private: true  # Requires API key for rate limiting
           authorizer:
             name: auth
             type: TOKEN
@@ -409,6 +468,7 @@ functions:
           path: admin/buses
           method: get
           cors: true
+          private: true  # Requires API key for rate limiting
           authorizer:
             name: auth
             type: TOKEN
@@ -813,6 +873,40 @@ resources:
           AttributeName: ttl
           Enabled: true
         # Additional attributes: latitude, longitude, speed, heading, geohash
+        # These are stored as document attributes and don't need to be defined in AttributeDefinitions
+
+    # =============================================================================
+    # USERS TABLE FOR AUTHENTICATION
+    # =============================================================================
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:service}-${opt:stage, self:provider.stage}-users
+        AttributeDefinitions:
+          - AttributeName: username
+            AttributeType: S
+          - AttributeName: email
+            AttributeType: S
+          - AttributeName: userId
+            AttributeType: S
+        KeySchema:
+          - AttributeName: username
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: EmailIndex
+            KeySchema:
+              - AttributeName: email
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: UserIdIndex
+            KeySchema:
+              - AttributeName: userId
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+        # Additional attributes: password, role, name, operatorId, isActive, createdAt, lastLoginAt
         # These are stored as document attributes and don't need to be defined in AttributeDefinitions
 
     # Redis ElastiCache Replication Group (only for production)

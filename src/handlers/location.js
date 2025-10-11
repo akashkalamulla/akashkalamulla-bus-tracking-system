@@ -5,6 +5,7 @@ const dynamodbService = require('../services/dynamodb');
 const redisService = require('../services/redis-service');
 const { MESSAGES, HTTP_STATUS } = require('../config/constants');
 const { parseAndValidateBody } = require('../utils/request-parser');
+const { withRateLimit } = require('../utils/rate-limiter');
 
 /**
  * Update bus location
@@ -201,3 +202,10 @@ exports.getLocation = async (event) => {
     return errorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Internal server error');
   }
 };
+
+// Wrap exports with rate limiting
+const originalUpdateLocation = exports.updateLocation;
+const originalGetLocation = exports.getLocation;
+
+exports.updateLocation = withRateLimit(originalUpdateLocation, 'OPERATOR');
+exports.getLocation = withRateLimit(originalGetLocation, 'OPERATOR');

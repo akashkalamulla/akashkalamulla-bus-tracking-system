@@ -12,6 +12,16 @@ const RATE_LIMITS = {
     windowMs: 60 * 1000,      // 1 minute window
     maxRequests: 30,          // 30 search requests per minute per IP
     message: 'Too many search requests, please slow down'
+  },
+  OPERATOR: {
+    windowMs: 60 * 1000,      // 1 minute window
+    maxRequests: 200,         // 200 requests per minute per IP (higher for operators)
+    message: 'Too many operator requests, please slow down'
+  },
+  ADMIN: {
+    windowMs: 60 * 1000,      // 1 minute window
+    maxRequests: 300,         // 300 requests per minute per IP (highest for admins)
+    message: 'Too many admin requests, please slow down'
   }
 };
 

@@ -5,6 +5,7 @@ const Redis = require('ioredis');
 const { error: logError, warn: logWarn, info: logInfo, debug: logDebug } = require('../../utils/logger');
 const { successResponse, errorResponse, notFoundResponse } = require('../../utils/response');
 const { getUserContext } = require('../auth');
+const { withRateLimit } = require('../../utils/rate-limiter');
 
 // Initialize DynamoDB client
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
@@ -881,3 +882,16 @@ exports.deleteRoute = async (event) => {
     return errorResponse('Failed to delete route', 500);
   }
 };
+
+// Wrap exports with rate limiting
+const originalGetAllRoutes = exports.getAllRoutes;
+const originalGetRoute = exports.getRoute;
+const originalCreateRoute = exports.createRoute;
+const originalUpdateRoute = exports.updateRoute;
+const originalDeleteRoute = exports.deleteRoute;
+
+exports.getAllRoutes = withRateLimit(originalGetAllRoutes, 'ADMIN');
+exports.getRoute = withRateLimit(originalGetRoute, 'ADMIN');
+exports.createRoute = withRateLimit(originalCreateRoute, 'ADMIN');
+exports.updateRoute = withRateLimit(originalUpdateRoute, 'ADMIN');
+exports.deleteRoute = withRateLimit(originalDeleteRoute, 'ADMIN');

@@ -3,6 +3,7 @@ const Redis = require('ioredis');
 const { getUserContext } = require('../auth');
 const { logger } = require('../../utils/logger');
 const { successResponse, errorResponse } = require('../../utils/response');
+const { withRateLimit } = require('../../utils/rate-limiter');
 
 // Initialize services
 const dynamodb = new AWS.DynamoDB.DocumentClient();
@@ -597,11 +598,11 @@ async function getLocation(event) {
 }
 
 module.exports = {
-  getBuses,
-  getBus,
-  createBus,
-  updateBus,
-  deleteBus,
-  updateLocation,
-  getLocation
+  getBuses: withRateLimit(getBuses, 'OPERATOR'),
+  getBus: withRateLimit(getBus, 'OPERATOR'),
+  createBus: withRateLimit(createBus, 'OPERATOR'),
+  updateBus: withRateLimit(updateBus, 'OPERATOR'),
+  deleteBus: withRateLimit(deleteBus, 'OPERATOR'),
+  updateLocation: withRateLimit(updateLocation, 'OPERATOR'),
+  getLocation: withRateLimit(getLocation, 'OPERATOR')
 };

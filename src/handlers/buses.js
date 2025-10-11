@@ -3,6 +3,7 @@ const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCom
 const { error: logError, warn: logWarn, info: logInfo } = require('../utils/logger');
 const { successResponse, errorResponse, notFoundResponse } = require('../utils/response');
 const { getUserContext } = require('./auth');
+const { withRateLimit } = require('../utils/rate-limiter');
 
 // Initialize DynamoDB client
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
@@ -165,3 +166,10 @@ exports.updateBus = async (event) => {
     return errorResponse('Failed to update bus information', 500);
   }
 };
+
+// Wrap exports with rate limiting
+const originalGetBus = exports.getBus;
+const originalUpdateBus = exports.updateBus;
+
+exports.getBus = withRateLimit(originalGetBus, 'OPERATOR');
+exports.updateBus = withRateLimit(originalUpdateBus, 'OPERATOR');

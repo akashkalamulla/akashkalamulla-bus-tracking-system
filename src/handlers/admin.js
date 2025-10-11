@@ -4,6 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { error: logError, warn: logWarn, info: logInfo } = require('../utils/logger');
 const { successResponse, errorResponse, notFoundResponse } = require('../utils/response');
 const { getUserContext } = require('./auth');
+const { withRateLimit } = require('../utils/rate-limiter');
 
 // Initialize DynamoDB client
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
@@ -18,7 +19,7 @@ const dynamodb = DynamoDBDocumentClient.from(client);
  * @param {Object} event - API Gateway event
  * @returns {Object} - API Gateway response
  */
-exports.getRoutes = async (event) => {
+const getRoutes = async (event) => {
   try {
     logInfo('Admin get routes request received');
 
@@ -808,3 +809,19 @@ function generateBusAnalytics(locations) {
     totalDistance: Math.round(totalDistance * 100) / 100 // Round to 2 decimal places
   };
 }
+
+// Wrap exports with rate limiting
+const originalGetBuses = exports.getBuses;
+const originalCreateBus = exports.createBus;
+const originalUpdateBus = exports.updateBus;
+const originalDeleteBus = exports.deleteBus;
+const originalGetHistory = exports.getHistory;
+const originalGetBusHistory = exports.getBusHistory;
+
+// Apply rate limiting to admin endpoints
+exports.getBuses = withRateLimit(originalGetBuses, 'ADMIN');
+exports.createBus = withRateLimit(originalCreateBus, 'ADMIN');
+exports.updateBus = withRateLimit(originalUpdateBus, 'ADMIN');
+exports.deleteBus = withRateLimit(originalDeleteBus, 'ADMIN');
+exports.getHistory = withRateLimit(originalGetHistory, 'ADMIN');
+exports.getBusHistory = withRateLimit(originalGetBusHistory, 'ADMIN');
