@@ -1,6 +1,8 @@
 const { v4: uuidv4 } = require('uuid');
 const { successResponse, errorResponse } = require('../utils/response');
-const { error: logError, warn: logWarn, info: logInfo, debug: logDebug } = require('../utils/logger');
+const {
+  error: logError, warn: logWarn, info: logInfo, debug: logDebug,
+} = require('../utils/logger');
 const dynamodbService = require('../services/dynamodb');
 const redisService = require('../services/redis-service');
 const { MESSAGES, HTTP_STATUS } = require('../config/constants');
@@ -93,13 +95,12 @@ exports.updateLocation = async (event) => {
         timestamp: locationData.timestamp,
         speed: speed || 0,
         heading: heading || 0,
-        updatedAt: new Date().toISOString()
+        updatedAt: new Date().toISOString(),
       };
-      
+
       // Safe Redis caching - won't fail if Redis unavailable
       await safeRedisOperation('set', cacheKey, JSON.stringify(cacheData), 300); // 5 minutes TTL
       logInfo(`Location cached successfully for bus ${busId}`, { cacheKey });
-
     } catch (dbError) {
       logError('Failed to store location in database:', dbError);
       return errorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Failed to store location data');
@@ -150,20 +151,20 @@ exports.getLocation = async (event) => {
     if (cachedLocation) {
       logInfo(`Location found in cache for bus ${busId}`);
       const locationData = JSON.parse(cachedLocation);
-      
+
       return successResponse({
         message: 'Location retrieved successfully',
         data: {
           busId,
           location: locationData,
-          source: 'cache'
-        }
+          source: 'cache',
+        },
       });
     }
 
     // If not in cache, get from database
     logInfo(`Location not in cache, querying database for bus ${busId}`);
-    
+
     try {
       // Query DynamoDB for latest location using the service's queryTable helper
       const queryParams = {
@@ -189,7 +190,7 @@ exports.getLocation = async (event) => {
         timestamp: latestLocation.timestamp,
         speed: latestLocation.speed || 0,
         heading: latestLocation.heading || 0,
-        updatedAt: latestLocation.createdAt
+        updatedAt: latestLocation.createdAt,
       };
 
       // Safe Redis caching - won't fail if Redis unavailable
@@ -201,15 +202,13 @@ exports.getLocation = async (event) => {
         data: {
           busId,
           location: locationData,
-          source: 'database'
-        }
+          source: 'database',
+        },
       });
-
     } catch (dbError) {
       logError('Failed to get location from database:', dbError);
       return errorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Failed to retrieve location data');
     }
-
   } catch (error) {
     logError('Error getting location:', error);
     return errorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Internal server error');

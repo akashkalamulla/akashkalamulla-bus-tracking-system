@@ -19,11 +19,11 @@ const authTests = [
   { role: 'BUS_OPERATOR', method: 'PUT', path: '/dev/buses/bus_001/location' },
   { role: 'COMMUTER', method: 'PUT', path: '/dev/buses/bus_001/location' },
   { role: 'NTC', method: 'PUT', path: '/dev/routes' },
-  { role: 'COMMUTER', method: 'GET', path: '/dev/routes' }
+  { role: 'COMMUTER', method: 'GET', path: '/dev/routes' },
 ];
 
 console.log('\nTesting role authorization logic:');
-authTests.forEach(test => {
+authTests.forEach((test) => {
   const result = auth.checkRoleAuthorization(test.role, test.method, test.path);
   console.log(`${test.role} ${test.method} ${test.path}: ${result.allowed ? '✅ ALLOWED' : '❌ DENIED'}`);
   if (!result.allowed) {

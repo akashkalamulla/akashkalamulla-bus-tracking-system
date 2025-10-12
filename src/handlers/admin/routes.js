@@ -21,7 +21,7 @@ try {
   } else if (process.env.REDIS_HOST && process.env.REDIS_PORT) {
     redis = new Redis({
       host: process.env.REDIS_HOST,
-      port: parseInt(process.env.REDIS_PORT),
+      port: parseInt(process.env.REDIS_PORT, 10),
       retryDelayOnFailover: 100,
       maxRetriesPerRequest: 3
     });

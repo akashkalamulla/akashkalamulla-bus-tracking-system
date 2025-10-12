@@ -1,5 +1,7 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand } = require('@aws-sdk/lib-dynamodb');
+const {
+  DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand,
+} = require('@aws-sdk/lib-dynamodb');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
@@ -19,7 +21,9 @@ const JWT_EXPIRES_IN = process.env.JWT_EXPIRES_IN || '24h';
  */
 exports.register = async (event) => {
   try {
-    const { username, password, email, role, name } = JSON.parse(event.body);
+    const {
+      username, password, email, role, name,
+    } = JSON.parse(event.body);
 
     // Validation
     if (!username || !password || !email || !role || !name) {
@@ -37,7 +41,7 @@ exports.register = async (event) => {
     // Check if user already exists
     const existingUser = await dynamodb.send(new GetCommand({
       TableName: USERS_TABLE,
-      Key: { username }
+      Key: { username },
     }));
 
     if (existingUser.Item) {
@@ -56,7 +60,7 @@ exports.register = async (event) => {
       role,
       name,
       createdAt: new Date().toISOString(),
-      isActive: true
+      isActive: true,
     };
 
     // Add operator-specific fields
@@ -66,7 +70,7 @@ exports.register = async (event) => {
 
     await dynamodb.send(new PutCommand({
       TableName: USERS_TABLE,
-      Item: user
+      Item: user,
     }));
 
     logInfo('User registered successfully', { userId: user.userId, username, role });
@@ -75,9 +79,8 @@ exports.register = async (event) => {
     const { password: _, ...userResponse } = user;
     return successResponse({
       message: 'User registered successfully',
-      user: userResponse
+      user: userResponse,
     }, 201);
-
   } catch (error) {
     logError('Registration error:', error);
     return errorResponse('Registration failed', 500);
@@ -99,7 +102,7 @@ exports.login = async (event) => {
     // Get user from database
     const result = await dynamodb.send(new GetCommand({
       TableName: USERS_TABLE,
-      Key: { username }
+      Key: { username },
     }));
 
     if (!result.Item) {
@@ -124,7 +127,7 @@ exports.login = async (event) => {
       userId: user.userId,
       username: user.username,
       role: user.role,
-      name: user.name
+      name: user.name,
     };
 
     // Add operator ID if applicable
@@ -140,8 +143,8 @@ exports.login = async (event) => {
       Key: { username },
       UpdateExpression: 'SET lastLoginAt = :now',
       ExpressionAttributeValues: {
-        ':now': new Date().toISOString()
-      }
+        ':now': new Date().toISOString(),
+      },
     }));
 
     logInfo('User logged in successfully', { userId: user.userId, username, role: user.role });
@@ -155,10 +158,9 @@ exports.login = async (event) => {
         email: user.email,
         role: user.role,
         name: user.name,
-        operatorId: user.operatorId
-      }
+        operatorId: user.operatorId,
+      },
     });
-
   } catch (error) {
     logError('Login error:', error);
     return errorResponse('Login failed', 500);
@@ -177,7 +179,7 @@ exports.refresh = async (event) => {
     }
 
     const token = authHeader.substring(7);
-    
+
     // Verify current token (even if expired)
     let decoded;
     try {
@@ -189,7 +191,7 @@ exports.refresh = async (event) => {
     // Get fresh user data
     const result = await dynamodb.send(new GetCommand({
       TableName: USERS_TABLE,
-      Key: { username: decoded.username }
+      Key: { username: decoded.username },
     }));
 
     if (!result.Item || !result.Item.isActive) {
@@ -203,7 +205,7 @@ exports.refresh = async (event) => {
       userId: user.userId,
       username: user.username,
       role: user.role,
-      name: user.name
+      name: user.name,
     };
 
     if (user.role === 'BUS_OPERATOR' && user.operatorId) {
@@ -214,9 +216,8 @@ exports.refresh = async (event) => {
 
     return successResponse({
       message: 'Token refreshed successfully',
-      token: newToken
+      token: newToken,
     });
-
   } catch (error) {
     logError('Token refresh error:', error);
     return errorResponse('Token refresh failed', 500);
@@ -230,7 +231,7 @@ exports.refresh = async (event) => {
 exports.getProfile = async (event) => {
   try {
     const userContext = event.requestContext.authorizer;
-    
+
     if (!userContext || !userContext.username) {
       return errorResponse('User context not found', 401);
     }
@@ -238,7 +239,7 @@ exports.getProfile = async (event) => {
     // Get fresh user data
     const result = await dynamodb.send(new GetCommand({
       TableName: USERS_TABLE,
-      Key: { username: userContext.username }
+      Key: { username: userContext.username },
     }));
 
     if (!result.Item) {
@@ -248,9 +249,8 @@ exports.getProfile = async (event) => {
     const { password, ...userProfile } = result.Item;
 
     return successResponse({
-      user: userProfile
+      user: userProfile,
     });
-
   } catch (error) {
     logError('Get profile error:', error);
     return errorResponse('Failed to get user profile', 500);
@@ -265,13 +265,12 @@ exports.logout = async (event) => {
   try {
     // In a production system, you might want to blacklist the token
     // For now, we'll just return success since JWT is stateless
-    
+
     logInfo('User logged out');
 
     return successResponse({
-      message: 'Logged out successfully'
+      message: 'Logged out successfully',
     });
-
   } catch (error) {
     logError('Logout error:', error);
     return errorResponse('Logout failed', 500);

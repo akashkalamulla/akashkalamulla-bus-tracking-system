@@ -1,4 +1,6 @@
-const { getAllRoutes, getRoute, createRoute, updateRoute, deleteRoute } = require('./src/handlers/admin/routes');
+const {
+  getAllRoutes, getRoute, createRoute, updateRoute, deleteRoute,
+} = require('./src/handlers/admin/routes');
 
 // Mock event for testing admin routes handler
 const mockEvent = {
@@ -12,18 +14,18 @@ const mockEvent = {
     total_stops: 15,
     fare_rs: 200,
     route_type: 'inter-provincial',
-    status: 'ACTIVE'
+    status: 'ACTIVE',
   }),
   requestContext: {
     authorizer: {
       userId: 'test-admin',
       role: 'NTC',
-      email: 'admin@ntc.lk'
-    }
+      email: 'admin@ntc.lk',
+    },
   },
   headers: {
-    'User-Agent': 'Test-Client/1.0'
-  }
+    'User-Agent': 'Test-Client/1.0',
+  },
 };
 
 // Test function
@@ -51,7 +53,6 @@ async function testAdminRoutes() {
     console.log('  ✅ Audit logging for admin actions');
     console.log('  ✅ Data validation and sanitization');
     console.log('  ✅ Proper HTTP status codes');
-
   } catch (error) {
     console.error('❌ Test failed:', error.message);
   }

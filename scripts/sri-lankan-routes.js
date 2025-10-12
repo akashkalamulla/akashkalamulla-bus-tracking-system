@@ -1,6 +1,6 @@
 /**
  * Sri Lankan Bus Routes Generator
- * 
+ *
  * Generates realistic inter-provincial bus routes connecting major cities in Sri Lanka
  */
 
@@ -16,8 +16,8 @@ const SRI_LANKAN_CITIES = {
       'Colombo Fort Bus Station',
       'Pettah Central Bus Stand',
       'Bastian Mawatha Bus Station',
-      'Maharagama Bus Station'
-    ]
+      'Maharagama Bus Station',
+    ],
   },
   kandy: {
     name: 'Kandy',
@@ -25,8 +25,8 @@ const SRI_LANKAN_CITIES = {
       'Kandy Central Bus Station',
       'Goods Shed Bus Station',
       'Clock Tower Bus Stand',
-      'Katugastota Bus Station'
-    ]
+      'Katugastota Bus Station',
+    ],
   },
   galle: {
     name: 'Galle',
@@ -34,8 +34,8 @@ const SRI_LANKAN_CITIES = {
       'Galle Bus Station',
       'Galle Fort Bus Stand',
       'Akmeemana Bus Station',
-      'Baddegama Bus Station'
-    ]
+      'Baddegama Bus Station',
+    ],
   },
   jaffna: {
     name: 'Jaffna',
@@ -43,8 +43,8 @@ const SRI_LANKAN_CITIES = {
       'Jaffna Central Bus Station',
       'Jaffna Town Bus Stand',
       'Chavakachcheri Bus Station',
-      'Point Pedro Bus Station'
-    ]
+      'Point Pedro Bus Station',
+    ],
   },
   anuradhapura: {
     name: 'Anuradhapura',
@@ -52,8 +52,8 @@ const SRI_LANKAN_CITIES = {
       'Anuradhapura New Bus Station',
       'Anuradhapura Old Bus Station',
       'Sacred City Bus Stand',
-      'Mihintale Bus Station'
-    ]
+      'Mihintale Bus Station',
+    ],
   },
   negombo: {
     name: 'Negombo',
@@ -61,8 +61,8 @@ const SRI_LANKAN_CITIES = {
       'Negombo Bus Station',
       'Katunayake Bus Stand',
       'Waikkal Bus Station',
-      'Chilaw Bus Station'
-    ]
+      'Chilaw Bus Station',
+    ],
   },
   matara: {
     name: 'Matara',
@@ -70,8 +70,8 @@ const SRI_LANKAN_CITIES = {
       'Matara Bus Station',
       'Matara Fort Bus Stand',
       'Weligama Bus Station',
-      'Mirissa Bus Station'
-    ]
+      'Mirissa Bus Station',
+    ],
   },
   trincomalee: {
     name: 'Trincomalee',
@@ -79,8 +79,8 @@ const SRI_LANKAN_CITIES = {
       'Trincomalee Bus Station',
       'Trinco Town Bus Stand',
       'Kinniya Bus Station',
-      'Uppuveli Bus Station'
-    ]
+      'Uppuveli Bus Station',
+    ],
   },
   batticaloa: {
     name: 'Batticaloa',
@@ -88,8 +88,8 @@ const SRI_LANKAN_CITIES = {
       'Batticaloa Bus Station',
       'Batti Central Bus Stand',
       'Kallady Bus Station',
-      'Pasikudah Bus Station'
-    ]
+      'Pasikudah Bus Station',
+    ],
   },
   ratnapura: {
     name: 'Ratnapura',
@@ -97,9 +97,9 @@ const SRI_LANKAN_CITIES = {
       'Ratnapura Bus Station',
       'Gem City Bus Stand',
       'Embilipitiya Bus Station',
-      'Balangoda Bus Station'
-    ]
-  }
+      'Balangoda Bus Station',
+    ],
+  },
 };
 
 /**
@@ -114,9 +114,9 @@ const ROUTE_TEMPLATES = [
     description: 'Direct express service connecting commercial capital Colombo to the cultural capital Kandy via scenic hill country route',
     totalStops: 12,
     intermediateStops: [
-      'Kelaniya', 'Kadawatha', 'Gampaha', 'Veyangoda', 
-      'Kegalle', 'Mawanella', 'Kadugannawa', 'Peradeniya'
-    ]
+      'Kelaniya', 'Kadawatha', 'Gampaha', 'Veyangoda',
+      'Kegalle', 'Mawanella', 'Kadugannawa', 'Peradeniya',
+    ],
   },
   {
     routeId: 'route_002',
@@ -126,9 +126,9 @@ const ROUTE_TEMPLATES = [
     description: 'Premium coastal highway service connecting Colombo to the historic southern port city of Galle',
     totalStops: 10,
     intermediateStops: [
-      'Mount Lavinia', 'Panadura', 'Kalutara', 'Beruwala', 
-      'Aluthgama', 'Bentota', 'Hikkaduwa', 'Unawatuna'
-    ]
+      'Mount Lavinia', 'Panadura', 'Kalutara', 'Beruwala',
+      'Aluthgama', 'Bentota', 'Hikkaduwa', 'Unawatuna',
+    ],
   },
   {
     routeId: 'route_003',
@@ -138,10 +138,10 @@ const ROUTE_TEMPLATES = [
     description: 'Long-distance express service to the northern peninsula via A9 highway with air-conditioned comfort',
     totalStops: 15,
     intermediateStops: [
-      'Negombo', 'Chilaw', 'Puttalam', 'Anuradhapura', 'Medawachchiya', 
-      'Vavuniya', 'Cheddikulam', 'Kilinochchi', 'Elephant Pass', 
-      'Chavakachcheri', 'Nallur'
-    ]
+      'Negombo', 'Chilaw', 'Puttalam', 'Anuradhapura', 'Medawachchiya',
+      'Vavuniya', 'Cheddikulam', 'Kilinochchi', 'Elephant Pass',
+      'Chavakachcheri', 'Nallur',
+    ],
   },
   {
     routeId: 'route_004',
@@ -151,10 +151,10 @@ const ROUTE_TEMPLATES = [
     description: 'Scenic route from hill capital to eastern coast via ancient cities and wildlife reserves',
     totalStops: 13,
     intermediateStops: [
-      'Dambulla', 'Sigiriya', 'Habarane', 'Polonnaruwa', 
-      'Batticaloa Junction', 'Valaichchenai', 'Muttur', 
-      'Somawathiya', 'Seruwawila', 'Nilaveli'
-    ]
+      'Dambulla', 'Sigiriya', 'Habarane', 'Polonnaruwa',
+      'Batticaloa Junction', 'Valaichchenai', 'Muttur',
+      'Somawathiya', 'Seruwawila', 'Nilaveli',
+    ],
   },
   {
     routeId: 'route_005',
@@ -164,10 +164,10 @@ const ROUTE_TEMPLATES = [
     description: 'Interior route connecting southern coast to gem mining capital through rubber plantations and rainforests',
     totalStops: 11,
     intermediateStops: [
-      'Elpitiya', 'Pitigala', 'Deniyaya', 'Morawaka', 
-      'Akuressa', 'Urubokka', 'Pelmadulla', 'Eheliyagoda', 'Kuruwita'
-    ]
-  }
+      'Elpitiya', 'Pitigala', 'Deniyaya', 'Morawaka',
+      'Akuressa', 'Urubokka', 'Pelmadulla', 'Eheliyagoda', 'Kuruwita',
+    ],
+  },
 ];
 
 /**
@@ -176,18 +176,18 @@ const ROUTE_TEMPLATES = [
 function generateSriLankanRoute(template) {
   const fromCity = SRI_LANKAN_CITIES[template.from];
   const toCity = SRI_LANKAN_CITIES[template.to];
-  
+
   // Get random locations from source and destination cities
   const startLocation = faker.helpers.arrayElement(fromCity.locations);
   const endLocation = faker.helpers.arrayElement(toCity.locations);
-  
+
   // Generate timestamps
   const createdAt = faker.date.past({ years: 2 }).toISOString();
-  const updatedAt = faker.date.between({ 
-    from: createdAt, 
-    to: new Date() 
+  const updatedAt = faker.date.between({
+    from: createdAt,
+    to: new Date(),
   }).toISOString();
-  
+
   return {
     RouteID: template.routeId,
     route_name: template.routeName,
@@ -207,7 +207,7 @@ function generateSriLankanRoute(template) {
     first_departure: '05:00',
     last_departure: '20:00',
     created_at: createdAt,
-    updated_at: updatedAt
+    updated_at: updatedAt,
   };
 }
 
@@ -216,8 +216,8 @@ function generateSriLankanRoute(template) {
  */
 function generateSriLankanRoutes() {
   console.log('🇱🇰 Generating Sri Lankan inter-provincial bus routes...\n');
-  
-  const routes = ROUTE_TEMPLATES.map(template => {
+
+  const routes = ROUTE_TEMPLATES.map((template) => {
     const route = generateSriLankanRoute(template);
     console.log(`✅ ${route.RouteID}: ${route.route_name}`);
     console.log(`   ${route.from_city} (${route.start_location}) → ${route.to_city} (${route.end_location})`);
@@ -225,7 +225,7 @@ function generateSriLankanRoutes() {
     console.log(`   Fare: Rs. ${route.fare_rs}, ${route.service_frequency}\n`);
     return route;
   });
-  
+
   console.log(`🎉 Generated ${routes.length} Sri Lankan inter-provincial routes`);
   return routes;
 }
@@ -236,8 +236,8 @@ function generateSriLankanRoutes() {
 function displayRouteSummary(routes) {
   console.log('\n📋 ROUTE SUMMARY');
   console.log('================');
-  
-  routes.forEach(route => {
+
+  routes.forEach((route) => {
     console.log(`${route.RouteID}: ${route.route_name}`);
     console.log(`  Route: ${route.from_city} → ${route.to_city}`);
     console.log(`  Stops: ${route.total_stops} | Distance: ${route.distance_km}km`);
@@ -254,22 +254,21 @@ function main() {
   try {
     const routes = generateSriLankanRoutes();
     displayRouteSummary(routes);
-    
+
     // Save to JSON file
     const fs = require('fs');
     const path = require('path');
-    
+
     const outputDir = 'data';
     if (!fs.existsSync(outputDir)) {
       fs.mkdirSync(outputDir, { recursive: true });
     }
-    
+
     const outputPath = path.join(outputDir, 'sri-lankan-routes.json');
     fs.writeFileSync(outputPath, JSON.stringify(routes, null, 2));
     console.log(`💾 Routes saved to ${outputPath}`);
-    
+
     return routes;
-    
   } catch (error) {
     console.error('❌ Error generating Sri Lankan routes:', error);
     process.exit(1);
@@ -282,7 +281,7 @@ module.exports = {
   generateSriLankanRoute,
   displayRouteSummary,
   SRI_LANKAN_CITIES,
-  ROUTE_TEMPLATES
+  ROUTE_TEMPLATES,
 };
 
 // Run if called directly

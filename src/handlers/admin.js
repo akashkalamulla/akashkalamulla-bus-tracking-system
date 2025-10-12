@@ -1,5 +1,7 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCommand, ScanCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
+const {
+  DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCommand, ScanCommand, QueryCommand,
+} = require('@aws-sdk/lib-dynamodb');
 const { v4: uuidv4 } = require('uuid');
 const { error: logError, warn: logWarn, info: logInfo } = require('../utils/logger');
 const { successResponse, errorResponse, notFoundResponse } = require('../utils/response');
@@ -26,15 +28,15 @@ const getRoutes = async (event) => {
     const userContext = getUserContext(event);
 
     const params = {
-      TableName: process.env.ROUTES_TABLE
+      TableName: process.env.ROUTES_TABLE,
     };
 
     const result = await dynamodb.send(new ScanCommand(params));
 
-    logInfo('Admin routes retrieved successfully', { 
+    logInfo('Admin routes retrieved successfully', {
       count: result.Items?.length || 0,
       user: userContext.userId,
-      role: userContext.role 
+      role: userContext.role,
     });
 
     return successResponse({
@@ -44,16 +46,15 @@ const getRoutes = async (event) => {
       adminContext: {
         userId: userContext.userId,
         role: userContext.role,
-        accessLevel: 'FULL_ADMIN'
-      }
+        accessLevel: 'FULL_ADMIN',
+      },
+    });
+  } catch (error) {
+    logError('Error retrieving admin routes', {
+      error: error.message,
+      stack: error.stack,
     });
 
-  } catch (error) {
-    logError('Error retrieving admin routes', { 
-      error: error.message,
-      stack: error.stack
-    });
-    
     return errorResponse('Failed to retrieve routes', 500);
   }
 };
@@ -78,8 +79,8 @@ exports.createRoute = async (event) => {
 
     // Validate required fields
     const requiredFields = ['route_name', 'start_location', 'end_location'];
-    const missingFields = requiredFields.filter(field => !requestBody[field]);
-    
+    const missingFields = requiredFields.filter((field) => !requestBody[field]);
+
     if (missingFields.length > 0) {
       return errorResponse(`Missing required fields: ${missingFields.join(', ')}`, 400);
     }
@@ -100,21 +101,21 @@ exports.createRoute = async (event) => {
       created_at: timestamp,
       updated_at: timestamp,
       created_by: userContext.userId,
-      updated_by: userContext.userId
+      updated_by: userContext.userId,
     };
 
     const params = {
       TableName: process.env.ROUTES_TABLE,
       Item: routeData,
-      ConditionExpression: 'attribute_not_exists(RouteID)' // Prevent overwrite
+      ConditionExpression: 'attribute_not_exists(RouteID)', // Prevent overwrite
     };
 
     await dynamodb.send(new PutCommand(params));
 
-    logInfo('Route created successfully', { 
+    logInfo('Route created successfully', {
       routeId,
       user: userContext.userId,
-      role: userContext.role
+      role: userContext.role,
     });
 
     return successResponse({
@@ -124,20 +125,19 @@ exports.createRoute = async (event) => {
       createdBy: {
         userId: userContext.userId,
         role: userContext.role,
-        timestamp
-      }
+        timestamp,
+      },
     });
-
   } catch (error) {
     if (error.name === 'ConditionalCheckFailedException') {
       return errorResponse('Route ID already exists', 409);
     }
 
-    logError('Error creating route', { 
+    logError('Error creating route', {
       error: error.message,
-      stack: error.stack
+      stack: error.stack,
     });
-    
+
     return errorResponse('Failed to create route', 500);
   }
 };
@@ -166,8 +166,8 @@ exports.updateRoute = async (event) => {
     // Allowed fields for update
     const allowedFields = ['route_name', 'start_location', 'end_location', 'description', 'total_stops', 'distance_km', 'estimated_duration_minutes', 'status'];
     const updateData = {};
-    
-    Object.keys(requestBody).forEach(key => {
+
+    Object.keys(requestBody).forEach((key) => {
       if (allowedFields.includes(key) && requestBody[key] !== undefined) {
         updateData[key] = requestBody[key];
       }
@@ -189,7 +189,7 @@ exports.updateRoute = async (event) => {
     Object.keys(updateData).forEach((key, index) => {
       const attrName = `#attr${index}`;
       const attrValue = `:val${index}`;
-      
+
       updateExpressions.push(`${attrName} = ${attrValue}`);
       expressionAttributeNames[attrName] = key;
       expressionAttributeValues[attrValue] = updateData[key];
@@ -202,15 +202,15 @@ exports.updateRoute = async (event) => {
       ExpressionAttributeNames: expressionAttributeNames,
       ExpressionAttributeValues: expressionAttributeValues,
       ConditionExpression: 'attribute_exists(RouteID)',
-      ReturnValues: 'ALL_NEW'
+      ReturnValues: 'ALL_NEW',
     };
 
     const result = await dynamodb.send(new UpdateCommand(params));
 
-    logInfo('Route updated successfully', { 
+    logInfo('Route updated successfully', {
       routeId,
       user: userContext.userId,
-      role: userContext.role
+      role: userContext.role,
     });
 
     return successResponse({
@@ -220,21 +220,20 @@ exports.updateRoute = async (event) => {
       updatedBy: {
         userId: userContext.userId,
         role: userContext.role,
-        timestamp: updateData.updated_at
-      }
+        timestamp: updateData.updated_at,
+      },
     });
-
   } catch (error) {
     if (error.name === 'ConditionalCheckFailedException') {
       return notFoundResponse(`Route ${event.pathParameters?.routeId} not found`);
     }
 
-    logError('Error updating route', { 
+    logError('Error updating route', {
       error: error.message,
       routeId: event.pathParameters?.routeId,
-      stack: error.stack
+      stack: error.stack,
     });
-    
+
     return errorResponse('Failed to update route', 500);
   }
 };
@@ -257,15 +256,15 @@ exports.deleteRoute = async (event) => {
       TableName: process.env.ROUTES_TABLE,
       Key: { RouteID: routeId },
       ConditionExpression: 'attribute_exists(RouteID)',
-      ReturnValues: 'ALL_OLD'
+      ReturnValues: 'ALL_OLD',
     };
 
     const result = await dynamodb.send(new DeleteCommand(params));
 
-    logInfo('Route deleted successfully', { 
+    logInfo('Route deleted successfully', {
       routeId,
       user: userContext.userId,
-      role: userContext.role
+      role: userContext.role,
     });
 
     return successResponse({
@@ -275,21 +274,20 @@ exports.deleteRoute = async (event) => {
       deletedBy: {
         userId: userContext.userId,
         role: userContext.role,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
-
   } catch (error) {
     if (error.name === 'ConditionalCheckFailedException') {
       return notFoundResponse(`Route ${event.pathParameters?.routeId} not found`);
     }
 
-    logError('Error deleting route', { 
+    logError('Error deleting route', {
       error: error.message,
       routeId: event.pathParameters?.routeId,
-      stack: error.stack
+      stack: error.stack,
     });
-    
+
     return errorResponse('Failed to delete route', 500);
   }
 };
@@ -310,15 +308,15 @@ exports.getBuses = async (event) => {
     const userContext = getUserContext(event);
 
     const params = {
-      TableName: process.env.BUSES_TABLE
+      TableName: process.env.BUSES_TABLE,
     };
 
     const result = await dynamodb.send(new ScanCommand(params));
 
-    logInfo('Admin buses retrieved successfully', { 
+    logInfo('Admin buses retrieved successfully', {
       count: result.Items?.length || 0,
       user: userContext.userId,
-      role: userContext.role 
+      role: userContext.role,
     });
 
     return successResponse({
@@ -328,16 +326,15 @@ exports.getBuses = async (event) => {
       adminContext: {
         userId: userContext.userId,
         role: userContext.role,
-        accessLevel: 'FULL_ADMIN'
-      }
+        accessLevel: 'FULL_ADMIN',
+      },
+    });
+  } catch (error) {
+    logError('Error retrieving admin buses', {
+      error: error.message,
+      stack: error.stack,
     });
 
-  } catch (error) {
-    logError('Error retrieving admin buses', { 
-      error: error.message,
-      stack: error.stack
-    });
-    
     return errorResponse('Failed to retrieve buses', 500);
   }
 };
@@ -362,8 +359,8 @@ exports.createBus = async (event) => {
 
     // Validate required fields
     const requiredFields = ['license_plate', 'RouteID'];
-    const missingFields = requiredFields.filter(field => !requestBody[field]);
-    
+    const missingFields = requiredFields.filter((field) => !requestBody[field]);
+
     if (missingFields.length > 0) {
       return errorResponse(`Missing required fields: ${missingFields.join(', ')}`, 400);
     }
@@ -383,21 +380,21 @@ exports.createBus = async (event) => {
       created_at: timestamp,
       updated_at: timestamp,
       created_by: userContext.userId,
-      updated_by: userContext.userId
+      updated_by: userContext.userId,
     };
 
     const params = {
       TableName: process.env.BUSES_TABLE,
       Item: busData,
-      ConditionExpression: 'attribute_not_exists(BusID)'
+      ConditionExpression: 'attribute_not_exists(BusID)',
     };
 
     await dynamodb.send(new PutCommand(params));
 
-    logInfo('Bus created successfully', { 
+    logInfo('Bus created successfully', {
       busId,
       user: userContext.userId,
-      role: userContext.role
+      role: userContext.role,
     });
 
     return successResponse({
@@ -407,20 +404,19 @@ exports.createBus = async (event) => {
       createdBy: {
         userId: userContext.userId,
         role: userContext.role,
-        timestamp
-      }
+        timestamp,
+      },
     });
-
   } catch (error) {
     if (error.name === 'ConditionalCheckFailedException') {
       return errorResponse('Bus ID already exists', 409);
     }
 
-    logError('Error creating bus', { 
+    logError('Error creating bus', {
       error: error.message,
-      stack: error.stack
+      stack: error.stack,
     });
-    
+
     return errorResponse('Failed to create bus', 500);
   }
 };
@@ -449,8 +445,8 @@ exports.updateBus = async (event) => {
     // Allowed fields for update
     const allowedFields = ['RouteID', 'license_plate', 'capacity', 'status', 'model', 'year', 'operator_id'];
     const updateData = {};
-    
-    Object.keys(requestBody).forEach(key => {
+
+    Object.keys(requestBody).forEach((key) => {
       if (allowedFields.includes(key) && requestBody[key] !== undefined) {
         updateData[key] = requestBody[key];
       }
@@ -472,7 +468,7 @@ exports.updateBus = async (event) => {
     Object.keys(updateData).forEach((key, index) => {
       const attrName = `#attr${index}`;
       const attrValue = `:val${index}`;
-      
+
       updateExpressions.push(`${attrName} = ${attrValue}`);
       expressionAttributeNames[attrName] = key;
       expressionAttributeValues[attrValue] = updateData[key];
@@ -485,15 +481,15 @@ exports.updateBus = async (event) => {
       ExpressionAttributeNames: expressionAttributeNames,
       ExpressionAttributeValues: expressionAttributeValues,
       ConditionExpression: 'attribute_exists(BusID)',
-      ReturnValues: 'ALL_NEW'
+      ReturnValues: 'ALL_NEW',
     };
 
     const result = await dynamodb.send(new UpdateCommand(params));
 
-    logInfo('Admin bus updated successfully', { 
+    logInfo('Admin bus updated successfully', {
       busId,
       user: userContext.userId,
-      role: userContext.role
+      role: userContext.role,
     });
 
     return successResponse({
@@ -503,21 +499,20 @@ exports.updateBus = async (event) => {
       updatedBy: {
         userId: userContext.userId,
         role: userContext.role,
-        timestamp: updateData.updated_at
-      }
+        timestamp: updateData.updated_at,
+      },
     });
-
   } catch (error) {
     if (error.name === 'ConditionalCheckFailedException') {
       return notFoundResponse(`Bus ${event.pathParameters?.busId} not found`);
     }
 
-    logError('Error updating admin bus', { 
+    logError('Error updating admin bus', {
       error: error.message,
       busId: event.pathParameters?.busId,
-      stack: error.stack
+      stack: error.stack,
     });
-    
+
     return errorResponse('Failed to update bus', 500);
   }
 };
@@ -540,15 +535,15 @@ exports.deleteBus = async (event) => {
       TableName: process.env.BUSES_TABLE,
       Key: { BusID: busId },
       ConditionExpression: 'attribute_exists(BusID)',
-      ReturnValues: 'ALL_OLD'
+      ReturnValues: 'ALL_OLD',
     };
 
     const result = await dynamodb.send(new DeleteCommand(params));
 
-    logInfo('Admin bus deleted successfully', { 
+    logInfo('Admin bus deleted successfully', {
       busId,
       user: userContext.userId,
-      role: userContext.role
+      role: userContext.role,
     });
 
     return successResponse({
@@ -558,21 +553,20 @@ exports.deleteBus = async (event) => {
       deletedBy: {
         userId: userContext.userId,
         role: userContext.role,
-        timestamp: new Date().toISOString()
-      }
+        timestamp: new Date().toISOString(),
+      },
     });
-
   } catch (error) {
     if (error.name === 'ConditionalCheckFailedException') {
       return notFoundResponse(`Bus ${event.pathParameters?.busId} not found`);
     }
 
-    logError('Error deleting admin bus', { 
+    logError('Error deleting admin bus', {
       error: error.message,
       busId: event.pathParameters?.busId,
-      stack: error.stack
+      stack: error.stack,
     });
-    
+
     return errorResponse('Failed to delete bus', 500);
   }
 };
@@ -594,13 +588,13 @@ exports.getHistory = async (event) => {
 
     // Get query parameters for filtering
     const queryParams = event.queryStringParameters || {};
-    const limit = parseInt(queryParams.limit) || 100;
-    const startDate = queryParams.startDate;
-    const endDate = queryParams.endDate;
+    const limit = parseInt(queryParams.limit, 10) || 100;
+    const { startDate } = queryParams;
+    const { endDate } = queryParams;
 
     const params = {
       TableName: process.env.LIVE_LOCATIONS_TABLE,
-      Limit: Math.min(limit, 1000) // Cap at 1000 for performance
+      Limit: Math.min(limit, 1000), // Cap at 1000 for performance
     };
 
     // Add time-based filtering if provided
@@ -609,7 +603,7 @@ exports.getHistory = async (event) => {
       params.ExpressionAttributeNames = { '#timestamp': 'timestamp' };
       params.ExpressionAttributeValues = {
         ':startDate': startDate,
-        ':endDate': endDate
+        ':endDate': endDate,
       };
     }
 
@@ -618,10 +612,10 @@ exports.getHistory = async (event) => {
     // Generate basic analytics
     const analytics = generateLocationAnalytics(result.Items || []);
 
-    logInfo('Admin history retrieved successfully', { 
+    logInfo('Admin history retrieved successfully', {
       recordCount: result.Items?.length || 0,
       user: userContext.userId,
-      role: userContext.role 
+      role: userContext.role,
     });
 
     return successResponse({
@@ -632,21 +626,20 @@ exports.getHistory = async (event) => {
         limit,
         startDate,
         endDate,
-        totalRecords: result.Items?.length || 0
+        totalRecords: result.Items?.length || 0,
       },
       adminContext: {
         userId: userContext.userId,
         role: userContext.role,
-        accessLevel: 'FULL_ADMIN'
-      }
+        accessLevel: 'FULL_ADMIN',
+      },
+    });
+  } catch (error) {
+    logError('Error retrieving admin history', {
+      error: error.message,
+      stack: error.stack,
     });
 
-  } catch (error) {
-    logError('Error retrieving admin history', { 
-      error: error.message,
-      stack: error.stack
-    });
-    
     return errorResponse('Failed to retrieve location history', 500);
   }
 };
@@ -669,18 +662,18 @@ exports.getBusHistory = async (event) => {
 
     // Get query parameters for filtering
     const queryParams = event.queryStringParameters || {};
-    const limit = parseInt(queryParams.limit) || 100;
-    const startDate = queryParams.startDate;
-    const endDate = queryParams.endDate;
+    const limit = parseInt(queryParams.limit, 10) || 100;
+    const { startDate } = queryParams;
+    const { endDate } = queryParams;
 
     const params = {
       TableName: process.env.LIVE_LOCATIONS_TABLE,
       KeyConditionExpression: 'BusID = :busId',
       ExpressionAttributeValues: {
-        ':busId': busId
+        ':busId': busId,
       },
       Limit: Math.min(limit, 1000),
-      ScanIndexForward: false // Most recent first
+      ScanIndexForward: false, // Most recent first
     };
 
     // Add time-based filtering if provided
@@ -696,11 +689,11 @@ exports.getBusHistory = async (event) => {
     // Generate bus-specific analytics
     const analytics = generateBusAnalytics(result.Items || []);
 
-    logInfo('Admin bus history retrieved successfully', { 
+    logInfo('Admin bus history retrieved successfully', {
       busId,
       recordCount: result.Items?.length || 0,
       user: userContext.userId,
-      role: userContext.role 
+      role: userContext.role,
     });
 
     return successResponse({
@@ -712,22 +705,21 @@ exports.getBusHistory = async (event) => {
         limit,
         startDate,
         endDate,
-        totalRecords: result.Items?.length || 0
+        totalRecords: result.Items?.length || 0,
       },
       adminContext: {
         userId: userContext.userId,
         role: userContext.role,
-        accessLevel: 'FULL_ADMIN'
-      }
+        accessLevel: 'FULL_ADMIN',
+      },
     });
-
   } catch (error) {
-    logError('Error retrieving admin bus history', { 
+    logError('Error retrieving admin bus history', {
       error: error.message,
       busId: event.pathParameters?.busId,
-      stack: error.stack
+      stack: error.stack,
     });
-    
+
     return errorResponse('Failed to retrieve bus location history', 500);
   }
 };
@@ -747,22 +739,22 @@ function generateLocationAnalytics(locations) {
       totalRecords: 0,
       uniqueBuses: 0,
       dateRange: null,
-      averageSpeed: 0
+      averageSpeed: 0,
     };
   }
 
-  const uniqueBuses = new Set(locations.map(loc => loc.BusID)).size;
-  const timestamps = locations.map(loc => loc.timestamp).filter(t => t).sort();
-  const speeds = locations.map(loc => loc.speed).filter(s => s && s > 0);
-  
+  const uniqueBuses = new Set(locations.map((loc) => loc.BusID)).size;
+  const timestamps = locations.map((loc) => loc.timestamp).filter((t) => t).sort();
+  const speeds = locations.map((loc) => loc.speed).filter((s) => s && s > 0);
+
   return {
     totalRecords: locations.length,
     uniqueBuses,
     dateRange: timestamps.length > 0 ? {
       earliest: timestamps[0],
-      latest: timestamps[timestamps.length - 1]
+      latest: timestamps[timestamps.length - 1],
     } : null,
-    averageSpeed: speeds.length > 0 ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0
+    averageSpeed: speeds.length > 0 ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0,
   };
 }
 
@@ -777,19 +769,19 @@ function generateBusAnalytics(locations) {
       totalRecords: 0,
       dateRange: null,
       averageSpeed: 0,
-      totalDistance: 0
+      totalDistance: 0,
     };
   }
 
-  const timestamps = locations.map(loc => loc.timestamp).filter(t => t).sort();
-  const speeds = locations.map(loc => loc.speed).filter(s => s && s > 0);
-  
+  const timestamps = locations.map((loc) => loc.timestamp).filter((t) => t).sort();
+  const speeds = locations.map((loc) => loc.speed).filter((s) => s && s > 0);
+
   // Calculate approximate total distance (simplified)
   let totalDistance = 0;
   for (let i = 1; i < locations.length; i++) {
     const prev = locations[i - 1];
     const curr = locations[i];
-    
+
     if (prev.latitude && prev.longitude && curr.latitude && curr.longitude) {
       // Simple distance calculation (not exact but gives an estimate)
       const latDiff = curr.latitude - prev.latitude;
@@ -803,10 +795,10 @@ function generateBusAnalytics(locations) {
     totalRecords: locations.length,
     dateRange: timestamps.length > 0 ? {
       earliest: timestamps[0],
-      latest: timestamps[timestamps.length - 1]
+      latest: timestamps[timestamps.length - 1],
     } : null,
     averageSpeed: speeds.length > 0 ? speeds.reduce((a, b) => a + b, 0) / speeds.length : 0,
-    totalDistance: Math.round(totalDistance * 100) / 100 // Round to 2 decimal places
+    totalDistance: Math.round(totalDistance * 100) / 100, // Round to 2 decimal places
   };
 }
 

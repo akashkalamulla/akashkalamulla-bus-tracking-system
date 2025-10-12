@@ -5,9 +5,9 @@ const JWT_SECRET = 'dev-secret-key-change-in-production';
 
 // Available roles in the system
 const ROLES = {
-  NTC: 'NTC',                    // National Transport Commission - highest authority
+  NTC: 'NTC', // National Transport Commission - highest authority
   BUS_OPERATOR: 'BUS_OPERATOR', // Bus operators/drivers - can update locations
-  COMMUTER: 'COMMUTER'           // Regular commuters - read-only access
+  COMMUTER: 'COMMUTER', // Regular commuters - read-only access
 };
 
 // Generate test JWT tokens for different roles
@@ -28,7 +28,7 @@ function generateTestTokens() {
       iat: baseTime,
       exp: expirationTime,
       iss: 'bus-tracking-system',
-      aud: 'bus-tracking-api'
+      aud: 'bus-tracking-api',
     };
 
     const token = jwt.sign(payload, JWT_SECRET);
@@ -36,7 +36,7 @@ function generateTestTokens() {
       role: roleValue,
       token: `Bearer ${token}`,
       payload: payload,
-      rawToken: token
+      rawToken: token,
     };
   });
 
@@ -62,7 +62,7 @@ Object.entries(testTokens).forEach(([roleName, tokenData]) => {
   console.log(`- Expires: ${new Date(tokenData.payload.exp * 1000).toISOString()}`);
 });
 
-console.log('\n' + '='.repeat(80));
+console.log(`\n${'='.repeat(80)}`);
 console.log('ROLE PERMISSIONS SUMMARY');
 console.log('='.repeat(80));
 
@@ -82,7 +82,7 @@ console.log('- Read-only access');
 console.log('- Can view bus locations and routes');
 console.log('- Cannot update anything');
 
-console.log('\n' + '='.repeat(80));
+console.log(`\n${'='.repeat(80)}`);
 console.log('QUICK TEST COMMANDS');
 console.log('='.repeat(80));
 
@@ -91,12 +91,12 @@ const apiBase = 'https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev';
 console.log('\n# Test BUS_OPERATOR updating location (should work):');
 console.log(`Invoke-RestMethod -Uri "${apiBase}/buses/bus_001/location" -Method PUT \\`);
 console.log(`  -Headers @{'Authorization'='${testTokens.BUS_OPERATOR.token}'; 'Content-Type'='application/json'} \\`);
-console.log(`  -Body '{"latitude":6.9271,"longitude":79.8612,"speed":25}'`);
+console.log('  -Body \'{"latitude":6.9271,"longitude":79.8612,"speed":25}\'');
 
 console.log('\n# Test COMMUTER updating location (should fail with 403):');
 console.log(`Invoke-RestMethod -Uri "${apiBase}/buses/bus_001/location" -Method PUT \\`);
 console.log(`  -Headers @{'Authorization'='${testTokens.COMMUTER.token}'; 'Content-Type'='application/json'} \\`);
-console.log(`  -Body '{"latitude":6.9271,"longitude":79.8612,"speed":25}'`);
+console.log('  -Body \'{"latitude":6.9271,"longitude":79.8612,"speed":25}\'');
 
 console.log('\n# Test COMMUTER reading location (should work):');
 console.log(`Invoke-RestMethod -Uri "${apiBase}/buses/bus_001/location" -Method GET \\`);
@@ -106,7 +106,7 @@ console.log('\n# Test without token (should fail with 401):');
 console.log(`Invoke-RestMethod -Uri "${apiBase}/buses/bus_001/location" -Method PUT`);
 
 // Verify tokens work
-console.log('\n' + '='.repeat(80));
+console.log(`\n${'='.repeat(80)}`);
 console.log('TOKEN VERIFICATION TEST');
 console.log('='.repeat(80));
 

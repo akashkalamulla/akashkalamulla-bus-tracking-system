@@ -10,16 +10,15 @@ try {
   const decoded = jwt.verify(token, secret);
   console.log('✅ Token is valid!');
   console.log('Decoded payload:', JSON.stringify(decoded, null, 2));
-  
+
   // Test the path pattern matching
-  const pathPattern = /^\/[^\/]+\/admin\/routes$/;
+  const pathPattern = /^/[^/]+/admin/routes$/;
   const testPath = '/dev/admin/routes';
-  
+
   console.log('\nTesting path pattern...');
   console.log('Pattern:', pathPattern);
   console.log('Test path:', testPath);
   console.log('Matches:', pathPattern.test(testPath));
-  
 } catch (error) {
   console.log('❌ Token verification failed:', error.message);
 }

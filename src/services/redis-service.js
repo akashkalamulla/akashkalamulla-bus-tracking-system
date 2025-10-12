@@ -1,5 +1,7 @@
 const Redis = require('ioredis');
-const { error: logError, warn: logWarn, info: logInfo, debug: logDebug } = require('../utils/logger');
+const {
+  error: logError, warn: logWarn, info: logInfo, debug: logDebug,
+} = require('../utils/logger');
 
 /**
  * Redis Service for caching functionality
@@ -32,10 +34,10 @@ class RedisService {
       } else {
         this.redis = new Redis({
           host: redisHost,
-          port: parseInt(redisPort),
+          port: parseInt(redisPort, 10),
           retryDelayOnFailover: 100,
           maxRetriesPerRequest: 3,
-          lazyConnect: true
+          lazyConnect: true,
         });
         logInfo('Redis connecting', { host: redisHost, port: redisPort });
       }
@@ -59,7 +61,6 @@ class RedisService {
       // Test the connection
       await this.redis.ping();
       this.isConnected = true;
-
     } catch (error) {
       logError('Failed to connect to Redis', { error: error.message });
       // Don't throw error - allow application to continue without cache
@@ -86,7 +87,6 @@ class RedisService {
       const value = await this.redis.get(key);
       logDebug('Redis GET', { key, found: !!value });
       return value;
-
     } catch (error) {
       logError('Redis GET error', { key, error: error.message });
       return null;
@@ -120,7 +120,6 @@ class RedisService {
       }
 
       return true;
-
     } catch (error) {
       logError('Redis SET error', { key, error: error.message });
       return false;
@@ -146,7 +145,6 @@ class RedisService {
       const result = await this.redis.del(key);
       logDebug('Redis DELETE', { key, deleted: result > 0 });
       return result > 0;
-
     } catch (error) {
       logError('Redis DELETE error', { key, error: error.message });
       return false;
@@ -170,7 +168,6 @@ class RedisService {
 
       const result = await this.redis.exists(key);
       return result === 1;
-
     } catch (error) {
       logError('Redis EXISTS error', { key, error: error.message });
       return false;
@@ -200,7 +197,7 @@ module.exports = {
   del: (key) => redisService.del(key),
   exists: (key) => redisService.exists(key),
   disconnect: () => redisService.disconnect(),
-  
+
   // Export the service instance for advanced usage
-  service: redisService
+  service: redisService,
 };

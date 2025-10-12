@@ -1,5 +1,7 @@
 const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
-const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCommand } = require('@aws-sdk/lib-dynamodb');
+const {
+  DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCommand,
+} = require('@aws-sdk/lib-dynamodb');
 const { error: logError, warn: logWarn, info: logInfo } = require('../utils/logger');
 const { successResponse, errorResponse, notFoundResponse } = require('../utils/response');
 const { getUserContext } = require('./auth');
@@ -25,10 +27,10 @@ exports.getBus = async (event) => {
 
     // Get user context from authorizer
     const userContext = getUserContext(event);
-    
+
     const params = {
       TableName: process.env.BUSES_TABLE,
-      Key: { BusID: busId }
+      Key: { BusID: busId },
     };
 
     const result = await dynamodb.send(new GetCommand(params));
@@ -37,10 +39,10 @@ exports.getBus = async (event) => {
       return notFoundResponse(`Bus ${busId} not found`);
     }
 
-    logInfo('Bus retrieved successfully', { 
-      busId, 
+    logInfo('Bus retrieved successfully', {
+      busId,
       user: userContext.userId,
-      role: userContext.role 
+      role: userContext.role,
     });
 
     return successResponse({
@@ -49,17 +51,16 @@ exports.getBus = async (event) => {
       bus: result.Item,
       requestedBy: {
         userId: userContext.userId,
-        role: userContext.role
-      }
+        role: userContext.role,
+      },
     });
-
   } catch (error) {
-    logError('Error retrieving bus information', { 
+    logError('Error retrieving bus information', {
       error: error.message,
       busId: event.pathParameters?.busId,
-      stack: error.stack
+      stack: error.stack,
     });
-    
+
     return errorResponse('Failed to retrieve bus information', 500);
   }
 };
@@ -91,9 +92,9 @@ exports.updateBus = async (event) => {
     // Validate required fields for bus update
     const allowedFields = ['RouteID', 'capacity', 'license_plate', 'status', 'operator_id', 'model', 'year'];
     const updateData = {};
-    
+
     // Only include allowed fields in update
-    Object.keys(requestBody).forEach(key => {
+    Object.keys(requestBody).forEach((key) => {
       if (allowedFields.includes(key) && requestBody[key] !== undefined) {
         updateData[key] = requestBody[key];
       }
@@ -115,7 +116,7 @@ exports.updateBus = async (event) => {
     Object.keys(updateData).forEach((key, index) => {
       const attrName = `#attr${index}`;
       const attrValue = `:val${index}`;
-      
+
       updateExpressions.push(`${attrName} = ${attrValue}`);
       expressionAttributeNames[attrName] = key;
       expressionAttributeValues[attrValue] = updateData[key];
@@ -128,16 +129,16 @@ exports.updateBus = async (event) => {
       ExpressionAttributeNames: expressionAttributeNames,
       ExpressionAttributeValues: expressionAttributeValues,
       ConditionExpression: 'attribute_exists(BusID)', // Ensure bus exists
-      ReturnValues: 'ALL_NEW'
+      ReturnValues: 'ALL_NEW',
     };
 
     const result = await dynamodb.send(new UpdateCommand(params));
 
-    logInfo('Bus updated successfully', { 
+    logInfo('Bus updated successfully', {
       busId,
       updatedFields: Object.keys(updateData),
       user: userContext.userId,
-      role: userContext.role
+      role: userContext.role,
     });
 
     return successResponse({
@@ -148,21 +149,20 @@ exports.updateBus = async (event) => {
       updatedBy: {
         userId: userContext.userId,
         role: userContext.role,
-        timestamp: updateData.updated_at
-      }
+        timestamp: updateData.updated_at,
+      },
     });
-
   } catch (error) {
     if (error.name === 'ConditionalCheckFailedException') {
       return notFoundResponse(`Bus ${event.pathParameters?.busId} not found`);
     }
 
-    logError('Error updating bus information', { 
+    logError('Error updating bus information', {
       error: error.message,
       busId: event.pathParameters?.busId,
-      stack: error.stack
+      stack: error.stack,
     });
-    
+
     return errorResponse('Failed to update bus information', 500);
   }
 };

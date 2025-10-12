@@ -8,12 +8,12 @@ const mockAdminEvent = {
     authorizer: {
       userId: 'admin-001',
       role: 'NTC',
-      email: 'admin@ntc.lk'
-    }
+      email: 'admin@ntc.lk',
+    },
   },
   headers: {
-    'User-Agent': 'Test-Client/1.0'
-  }
+    'User-Agent': 'Test-Client/1.0',
+  },
 };
 
 async function testAdminEndpoint() {

@@ -1,6 +1,6 @@
 /**
  * Data Loading Test Utility
- * 
+ *
  * Demonstrates all features of the enhanced load-data.js script
  */
 
@@ -12,27 +12,26 @@ const { loadJsonData, batchWriteItems, CONFIG } = require('./load-data');
 function testDataValidation() {
   console.log('🧪 TESTING DATA VALIDATION');
   console.log('===========================\n');
-  
+
   try {
     // Test loading individual files
     console.log('📖 Testing individual file loading...');
-    
+
     const routes = loadJsonData('routes.json');
     console.log(`✅ Routes: ${routes.length} records loaded`);
-    
+
     const buses = loadJsonData('buses.json');
     console.log(`✅ Buses: ${buses.length} records loaded`);
-    
+
     const schedules = loadJsonData('schedules.json');
     console.log(`✅ Schedules: ${schedules.length} records loaded`);
-    
+
     const liveLocations = loadJsonData('live-locations.json');
     console.log(`✅ Live Locations: ${liveLocations.length} records loaded`);
-    
+
     console.log('\n📊 Data Summary:');
     console.log(`Total records to load: ${routes.length + buses.length + schedules.length + liveLocations.length}`);
     console.log(`Estimated batches: ${Math.ceil((routes.length + buses.length + schedules.length + liveLocations.length) / CONFIG.batchSize)}`);
-    
   } catch (error) {
     console.error('❌ Data validation failed:', error.message);
   }
@@ -44,11 +43,11 @@ function testDataValidation() {
 function testSimulationData() {
   console.log('\n🧪 TESTING SIMULATION DATA FORMAT');
   console.log('==================================\n');
-  
+
   try {
     // Check if simulation data exists
     const simulationData = loadJsonData('simulation-data.json.backup');
-    
+
     console.log('📊 Simulation Data Structure:');
     Object.entries(simulationData).forEach(([key, data]) => {
       if (Array.isArray(data)) {
@@ -57,17 +56,16 @@ function testSimulationData() {
         console.log(`  ${key}: ${typeof data}`);
       }
     });
-    
+
     // Validate structure
     const requiredFields = ['routes', 'buses'];
-    const missingFields = requiredFields.filter(field => !simulationData[field]);
-    
+    const missingFields = requiredFields.filter((field) => !simulationData[field]);
+
     if (missingFields.length === 0) {
       console.log('✅ Simulation data structure is valid');
     } else {
       console.log(`⚠️  Missing required fields: ${missingFields.join(', ')}`);
     }
-    
   } catch (error) {
     console.log('ℹ️  Simulation data not available for testing');
   }
@@ -79,18 +77,18 @@ function testSimulationData() {
 function testBatchCalculations() {
   console.log('\n🧪 TESTING BATCH CALCULATIONS');
   console.log('==============================\n');
-  
+
   const testData = [
     { name: 'Small dataset', count: 10 },
     { name: 'Medium dataset', count: 50 },
     { name: 'Large dataset', count: 250 },
-    { name: 'Extra large dataset', count: 1000 }
+    { name: 'Extra large dataset', count: 1000 },
   ];
-  
-  testData.forEach(test => {
+
+  testData.forEach((test) => {
     const batches = Math.ceil(test.count / CONFIG.batchSize);
     const lastBatchSize = test.count % CONFIG.batchSize || CONFIG.batchSize;
-    
+
     console.log(`📦 ${test.name}: ${test.count} items`);
     console.log(`  Batches: ${batches}`);
     console.log(`  Last batch size: ${lastBatchSize} items`);
@@ -105,27 +103,27 @@ function testBatchCalculations() {
 function testEnvironmentConfig() {
   console.log('\n🧪 TESTING ENVIRONMENT CONFIGURATION');
   console.log('=====================================\n');
-  
+
   // Test different environment scenarios
   const environments = [
     { name: 'Local Development', isLocal: true, stage: 'dev' },
     { name: 'AWS Development', isLocal: false, stage: 'dev' },
     { name: 'AWS Staging', isLocal: false, stage: 'staging' },
-    { name: 'AWS Production', isLocal: false, stage: 'prod' }
+    { name: 'AWS Production', isLocal: false, stage: 'prod' },
   ];
-  
-  environments.forEach(env => {
+
+  environments.forEach((env) => {
     console.log(`🌐 ${env.name}:`);
-    
+
     // Simulate table name generation
     const prefix = env.isLocal ? 'bus-tracking-system-dev' : `bus-tracking-system-${env.stage}`;
     const tableNames = {
       routes: `${prefix}-routes`,
       buses: `${prefix}-buses`,
       liveLocations: `${prefix}-live-locations`,
-      schedules: `${prefix}-schedules`
+      schedules: `${prefix}-schedules`,
     };
-    
+
     Object.entries(tableNames).forEach(([key, tableName]) => {
       console.log(`  ${key}: ${tableName}`);
     });
@@ -139,12 +137,12 @@ function testEnvironmentConfig() {
 function testErrorScenarios() {
   console.log('\n🧪 TESTING ERROR SCENARIOS');
   console.log('===========================\n');
-  
+
   const errorTests = [
     {
       name: 'Missing data file',
       test: () => loadJsonData('nonexistent.json'),
-      expectedError: 'Data file not found'
+      expectedError: 'Data file not found',
     },
     {
       name: 'Invalid JSON format',
@@ -160,11 +158,11 @@ function testErrorScenarios() {
           fs.unlinkSync(testFile);
         }
       },
-      expectedError: 'JSON parsing error'
-    }
+      expectedError: 'JSON parsing error',
+    },
   ];
-  
-  errorTests.forEach(errorTest => {
+
+  errorTests.forEach((errorTest) => {
     console.log(`❌ Testing: ${errorTest.name}`);
     try {
       errorTest.test();
@@ -182,13 +180,13 @@ function testErrorScenarios() {
 function displayPerformanceRecommendations() {
   console.log('\n🚀 PERFORMANCE RECOMMENDATIONS');
   console.log('===============================\n');
-  
+
   console.log('📈 Batch Writing Optimization:');
   console.log(`  Current batch size: ${CONFIG.batchSize} items (DynamoDB limit)`);
   console.log(`  Retry attempts: ${CONFIG.maxRetries}`);
   console.log(`  Retry delay: ${CONFIG.retryDelayMs}ms`);
   console.log('');
-  
+
   console.log('⚡ Performance Tips:');
   console.log('  • Use provisioned capacity for large data loads');
   console.log('  • Monitor CloudWatch metrics for throttling');
@@ -196,7 +194,7 @@ function displayPerformanceRecommendations() {
   console.log('  • Use exponential backoff for retries');
   console.log('  • Enable DynamoDB streams for real-time processing');
   console.log('');
-  
+
   console.log('🔒 Security Best Practices:');
   console.log('  • Use IAM roles instead of access keys');
   console.log('  • Implement least privilege access');
@@ -211,14 +209,14 @@ function displayPerformanceRecommendations() {
 function runAllTests() {
   console.log('🧪 ENHANCED DATA LOADER - COMPREHENSIVE TESTING');
   console.log('===============================================\n');
-  
+
   testDataValidation();
   testSimulationData();
   testBatchCalculations();
   testEnvironmentConfig();
   testErrorScenarios();
   displayPerformanceRecommendations();
-  
+
   console.log('\n🎉 All tests completed successfully!');
   console.log('\n💡 Usage Examples:');
   console.log('• Development: node scripts/load-data.js --local');
@@ -240,5 +238,5 @@ module.exports = {
   testEnvironmentConfig,
   testErrorScenarios,
   displayPerformanceRecommendations,
-  runAllTests
+  runAllTests,
 };

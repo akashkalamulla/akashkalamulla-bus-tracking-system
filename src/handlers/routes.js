@@ -135,13 +135,13 @@ exports.getLiveBuses = async (event) => {
         IndexName: 'RouteID-timestamp-index',
         KeyConditionExpression: 'route_id = :routeId',
         ExpressionAttributeValues: {
-          ':routeId': routeId
+          ':routeId': routeId,
         },
         // Only get recent locations (last 10 minutes)
         FilterExpression: '#timestamp > :cutoffTime',
         ExpressionAttributeNames: {
-          '#timestamp': 'timestamp'
-        }
+          '#timestamp': 'timestamp',
+        },
       };
 
       // Calculate cutoff time (10 minutes ago)
@@ -153,7 +153,7 @@ exports.getLiveBuses = async (event) => {
 
       // Group by BusID to get latest location for each bus
       const latestPositions = {};
-      liveBuses.forEach(location => {
+      liveBuses.forEach((location) => {
         const busId = location.BusID;
         if (!latestPositions[busId] || location.timestamp > latestPositions[busId].timestamp) {
           latestPositions[busId] = location;
@@ -161,7 +161,6 @@ exports.getLiveBuses = async (event) => {
       });
 
       liveBuses = Object.values(latestPositions);
-
     } catch (dbError) {
       logger.warn('Failed to fetch live buses from database, using mock data:', dbError.message);
       // Fallback to mock data
@@ -174,7 +173,7 @@ exports.getLiveBuses = async (event) => {
           speed: 25,
           heading: 180,
           timestamp: new Date().toISOString(),
-          status: 'IN_SERVICE'
+          status: 'IN_SERVICE',
         },
         {
           BusID: 'bus_002',
@@ -184,8 +183,8 @@ exports.getLiveBuses = async (event) => {
           speed: 30,
           heading: 90,
           timestamp: new Date().toISOString(),
-          status: 'IN_SERVICE'
-        }
+          status: 'IN_SERVICE',
+        },
       ];
     }
 
@@ -195,10 +194,9 @@ exports.getLiveBuses = async (event) => {
         routeId,
         liveBuses,
         count: liveBuses.length,
-        lastUpdated: new Date().toISOString()
-      }
+        lastUpdated: new Date().toISOString(),
+      },
     });
-
   } catch (error) {
     logger.error('Error fetching live buses:', error);
     return errorResponse(HTTP_STATUS.INTERNAL_SERVER_ERROR, 'Internal server error');

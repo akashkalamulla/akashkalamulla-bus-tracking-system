@@ -3,7 +3,7 @@
 /**
  * Rate Limiting Test Script
  * Tests API Gateway Usage Plans rate limiting functionality
- * 
+ *
  * Usage: node scripts/test-rate-limiting.js [stage] [region]
  */
 
@@ -20,7 +20,7 @@ const tests = {
   authenticatedEndpoint: '/routes', // This also requires API key now
   maxRequests: 20,
   concurrentRequests: 5,
-  delayBetweenRequests: 100 // milliseconds
+  delayBetweenRequests: 100, // milliseconds
 };
 
 /**
@@ -29,7 +29,7 @@ const tests = {
 function makeRequest(url, headers = {}) {
   return new Promise((resolve, reject) => {
     const parsedUrl = new URL(url);
-    
+
     const options = {
       hostname: parsedUrl.hostname,
       port: parsedUrl.port || 443,
@@ -37,24 +37,24 @@ function makeRequest(url, headers = {}) {
       method: 'GET',
       headers: {
         'User-Agent': 'Rate-Limiting-Test/1.0',
-        ...headers
-      }
+        ...headers,
+      },
     };
 
     const req = https.request(options, (res) => {
       let data = '';
-      
+
       res.on('data', (chunk) => {
         data += chunk;
       });
-      
+
       res.on('end', () => {
         resolve({
           statusCode: res.statusCode,
           statusMessage: res.statusMessage,
           headers: res.headers,
           body: data,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
         });
       });
     });
@@ -79,20 +79,20 @@ async function runRateLimitTest(baseUrl, endpoint, apiKey, testName) {
   console.log(`\n🧪 Testing ${testName}`);
   console.log('='.repeat(50));
   console.log(`Endpoint: ${endpoint}`);
-  console.log(`API Key: ${apiKey ? apiKey.substring(0, 20) + '...' : 'NOT PROVIDED'}`);
+  console.log(`API Key: ${apiKey ? `${apiKey.substring(0, 20)}...` : 'NOT PROVIDED'}`);
   console.log(`Max requests: ${tests.maxRequests}`);
   console.log(`Concurrent: ${tests.concurrentRequests}`);
   console.log();
 
   const url = baseUrl + endpoint;
   const headers = apiKey ? { 'X-API-Key': apiKey } : {};
-  
+
   const results = {
     success: 0,
     throttled: 0,
     forbidden: 0,
     errors: 0,
-    responses: []
+    responses: [],
   };
 
   // Test 1: Single request to verify basic functionality
@@ -100,7 +100,7 @@ async function runRateLimitTest(baseUrl, endpoint, apiKey, testName) {
   try {
     const response = await makeRequest(url, headers);
     console.log(`   Status: ${response.statusCode} ${response.statusMessage}`);
-    
+
     if (response.statusCode === 200) {
       console.log('   ✅ Basic request successful');
     } else if (response.statusCode === 403) {
@@ -117,12 +117,12 @@ async function runRateLimitTest(baseUrl, endpoint, apiKey, testName) {
   // Test 2: Rapid fire requests to test rate limiting
   console.log('\n📋 Test 2: Rate limiting (rapid requests)');
   const promises = [];
-  
+
   for (let i = 0; i < tests.maxRequests; i++) {
     const promise = makeRequest(url, headers)
-      .then(response => {
+      .then((response) => {
         results.responses.push(response);
-        
+
         if (response.statusCode === 200) {
           results.success++;
         } else if (response.statusCode === 429) {
@@ -132,19 +132,19 @@ async function runRateLimitTest(baseUrl, endpoint, apiKey, testName) {
         } else {
           results.errors++;
         }
-        
+
         return response;
       })
-      .catch(error => {
+      .catch((error) => {
         results.errors++;
         return { error: error.message, timestamp: new Date().toISOString() };
       });
-    
+
     promises.push(promise);
-    
+
     // Add small delay between requests
     if (i < tests.maxRequests - 1) {
-      await new Promise(resolve => setTimeout(resolve, tests.delayBetweenRequests));
+      await new Promise((resolve) => setTimeout(resolve, tests.delayBetweenRequests));
     }
   }
 
@@ -181,22 +181,23 @@ async function main() {
   console.log('='.repeat(60));
 
   // Try to load API keys from environment file
-  let publicApiKey, authApiKey, baseUrl;
-  
+  let publicApiKey; let authApiKey; let
+    baseUrl;
+
   try {
     const envFile = `.env.api-keys.${stage}`;
     const fs = require('fs');
-    
+
     if (fs.existsSync(envFile)) {
       const envContent = fs.readFileSync(envFile, 'utf8');
       const apiKeyMatch = envContent.match(/PUBLIC_API_KEY=(.+)/);
       const authKeyMatch = envContent.match(/AUTHENTICATED_API_KEY=(.+)/);
       const baseUrlMatch = envContent.match(/API_BASE_URL=(.+)/);
-      
+
       publicApiKey = apiKeyMatch ? apiKeyMatch[1].trim() : null;
       authApiKey = authKeyMatch ? authKeyMatch[1].trim() : null;
       baseUrl = baseUrlMatch ? baseUrlMatch[1].trim() : null;
-      
+
       console.log(`📄 Loaded configuration from ${envFile}`);
     }
   } catch (error) {
@@ -206,8 +207,8 @@ async function main() {
   // Fallback to manual input if no environment file
   if (!baseUrl) {
     console.log('\n❗ API configuration not found. Please:');
-    console.log('1. Deploy your application: serverless deploy --stage ' + stage);
-    console.log('2. Get API keys: node scripts/get-api-keys.js ' + stage);
+    console.log(`1. Deploy your application: serverless deploy --stage ${stage}`);
+    console.log(`2. Get API keys: node scripts/get-api-keys.js ${stage}`);
     console.log('3. Re-run this test');
     process.exit(1);
   }
@@ -220,14 +221,14 @@ async function main() {
       name: 'Public Endpoint WITHOUT API Key',
       endpoint: tests.publicEndpoint,
       apiKey: null,
-      expectForbidden: true
+      expectForbidden: true,
     },
     {
       name: 'Public Endpoint WITH API Key',
       endpoint: tests.publicEndpoint,
       apiKey: publicApiKey,
-      expectForbidden: false
-    }
+      expectForbidden: false,
+    },
   ];
 
   if (authApiKey) {
@@ -235,18 +236,18 @@ async function main() {
       name: 'Routes Endpoint WITH API Key',
       endpoint: tests.authenticatedEndpoint,
       apiKey: authApiKey,
-      expectForbidden: false
+      expectForbidden: false,
     });
   }
 
   // Run tests
   for (const scenario of scenarios) {
     await runRateLimitTest(baseUrl, scenario.endpoint, scenario.apiKey, scenario.name);
-    
+
     // Wait between tests
     if (scenarios.indexOf(scenario) < scenarios.length - 1) {
       console.log('\n⏳ Waiting 5 seconds before next test...');
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      await new Promise((resolve) => setTimeout(resolve, 5000));
     }
   }
 
@@ -259,7 +260,7 @@ async function main() {
 
 // Run tests if called directly
 if (require.main === module) {
-  main().catch(error => {
+  main().catch((error) => {
     console.error('\n❌ Test failed:', error.message);
     process.exit(1);
   });
