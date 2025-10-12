@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { error: logError, warn: logWarn, info: logInfo } = require('../utils/logger');
 const { successResponse, errorResponse, notFoundResponse } = require('../utils/response');
 const { getUserContext } = require('./auth');
-const { withRateLimit } = require('../utils/rate-limiter');
+// const { withRateLimit } = require('../utils/rate-limiter'); // DISABLED FOR PRODUCTION
 
 // Initialize DynamoDB client
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
@@ -819,9 +819,16 @@ const originalGetHistory = exports.getHistory;
 const originalGetBusHistory = exports.getBusHistory;
 
 // Apply rate limiting to admin endpoints
-exports.getBuses = withRateLimit(originalGetBuses, 'ADMIN');
-exports.createBus = withRateLimit(originalCreateBus, 'ADMIN');
-exports.updateBus = withRateLimit(originalUpdateBus, 'ADMIN');
-exports.deleteBus = withRateLimit(originalDeleteBus, 'ADMIN');
-exports.getHistory = withRateLimit(originalGetHistory, 'ADMIN');
-exports.getBusHistory = withRateLimit(originalGetBusHistory, 'ADMIN');
+// PRODUCTION: Rate limiting disabled for reliability
+// exports.getBuses = withRateLimit(originalGetBuses, 'ADMIN');
+// exports.createBus = withRateLimit(originalCreateBus, 'ADMIN');
+// exports.updateBus = withRateLimit(originalUpdateBus, 'ADMIN');
+// exports.deleteBus = withRateLimit(originalDeleteBus, 'ADMIN');
+// exports.getHistory = withRateLimit(originalGetHistory, 'ADMIN');
+// exports.getBusHistory = withRateLimit(originalGetBusHistory, 'ADMIN');
+exports.getBuses = originalGetBuses;
+exports.createBus = originalCreateBus;
+exports.updateBus = originalUpdateBus;
+exports.deleteBus = originalDeleteBus;
+exports.getHistory = originalGetHistory;
+exports.getBusHistory = originalGetBusHistory;

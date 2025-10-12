@@ -5,7 +5,18 @@ const dynamodbService = require('../services/dynamodb');
 const redisService = require('../services/redis-service');
 const { MESSAGES, HTTP_STATUS } = require('../config/constants');
 const { parseAndValidateBody } = require('../utils/request-parser');
-const { withRateLimit } = require('../utils/rate-limiter');
+// const redisService = require('../services/redis-service');
+// const { withRateLimit } = require('../utils/rate-limiter'); // DISABLED FOR PRODUCTION
+
+// Helper function to safely use Redis - fails gracefully if Redis unavailable
+async function safeRedisOperation(operation, ...args) {
+  try {
+    return await redisService[operation](...args);
+  } catch (error) {
+    logWarn(`Redis operation ${operation} failed, continuing without cache`, { error: error.message });
+    return null;
+  }
+}
 
 /**
  * Update bus location
@@ -85,7 +96,8 @@ exports.updateLocation = async (event) => {
         updatedAt: new Date().toISOString()
       };
       
-      await redisService.set(cacheKey, JSON.stringify(cacheData), 300); // 5 minutes TTL
+      // Safe Redis caching - won't fail if Redis unavailable
+      await safeRedisOperation('set', cacheKey, JSON.stringify(cacheData), 300); // 5 minutes TTL
       logInfo(`Location cached successfully for bus ${busId}`, { cacheKey });
 
     } catch (dbError) {
@@ -132,7 +144,8 @@ exports.getLocation = async (event) => {
 
     // Try to get from cache first
     const cacheKey = `bus:${busId}:location`;
-    const cachedLocation = await redisService.get(cacheKey);
+    // Try cache first (safe operation)
+    const cachedLocation = await safeRedisOperation('get', cacheKey);
 
     if (cachedLocation) {
       logInfo(`Location found in cache for bus ${busId}`);
@@ -179,8 +192,8 @@ exports.getLocation = async (event) => {
         updatedAt: latestLocation.createdAt
       };
 
-      // Cache the result for future requests
-      await redisService.set(cacheKey, JSON.stringify(locationData), 300); // 5 minutes TTL
+      // Safe Redis caching - won't fail if Redis unavailable
+      await safeRedisOperation('set', cacheKey, JSON.stringify(locationData), 300); // 5 minutes TTL
       logInfo(`Location cached from database for bus ${busId}`);
 
       return successResponse({
@@ -207,5 +220,8 @@ exports.getLocation = async (event) => {
 const originalUpdateLocation = exports.updateLocation;
 const originalGetLocation = exports.getLocation;
 
-exports.updateLocation = withRateLimit(originalUpdateLocation, 'OPERATOR');
-exports.getLocation = withRateLimit(originalGetLocation, 'OPERATOR');
+// PRODUCTION: Rate limiting disabled for reliability
+// exports.updateLocation = withRateLimit(originalUpdateLocation, 'OPERATOR');
+// exports.getLocation = withRateLimit(originalGetLocation, 'OPERATOR');
+exports.updateLocation = originalUpdateLocation;
+exports.getLocation = originalGetLocation;

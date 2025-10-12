@@ -3,7 +3,7 @@ const { DynamoDBDocumentClient, GetCommand, PutCommand, UpdateCommand, DeleteCom
 const { error: logError, warn: logWarn, info: logInfo } = require('../utils/logger');
 const { successResponse, errorResponse, notFoundResponse } = require('../utils/response');
 const { getUserContext } = require('./auth');
-const { withRateLimit } = require('../utils/rate-limiter');
+// const { withRateLimit } = require('../utils/rate-limiter'); // DISABLED FOR PRODUCTION
 
 // Initialize DynamoDB client
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
@@ -171,5 +171,8 @@ exports.updateBus = async (event) => {
 const originalGetBus = exports.getBus;
 const originalUpdateBus = exports.updateBus;
 
-exports.getBus = withRateLimit(originalGetBus, 'OPERATOR');
-exports.updateBus = withRateLimit(originalUpdateBus, 'OPERATOR');
+// PRODUCTION: Rate limiting disabled for reliability
+// exports.getBus = withRateLimit(originalGetBus, 'OPERATOR');
+// exports.updateBus = withRateLimit(originalUpdateBus, 'OPERATOR');
+exports.getBus = originalGetBus;
+exports.updateBus = originalUpdateBus;

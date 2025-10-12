@@ -5,14 +5,16 @@ const Redis = require('ioredis');
 const { error: logError, warn: logWarn, info: logInfo, debug: logDebug } = require('../../utils/logger');
 const { successResponse, errorResponse, notFoundResponse } = require('../../utils/response');
 const { getUserContext } = require('../auth');
-const { withRateLimit } = require('../../utils/rate-limiter');
+// const { withRateLimit } = require('../../utils/rate-limiter'); // DISABLED FOR PRODUCTION
 
 // Initialize DynamoDB client
 const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
 const dynamodb = DynamoDBDocumentClient.from(client);
 
-// Initialize Redis client with error handling
+// Initialize Redis client with error handling - DISABLED FOR PRODUCTION
 let redis = null;
+// Redis disabled for production reliability - uncomment below if Redis is available
+/*
 try {
   if (process.env.REDIS_URL) {
     redis = new Redis(process.env.REDIS_URL);
@@ -34,6 +36,7 @@ try {
 } catch (redisError) {
   logWarn('Redis initialization failed, caching disabled', { error: redisError.message });
 }
+*/
 
 // Cache configuration
 const CACHE_CONFIG = {

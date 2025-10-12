@@ -740,80 +740,6 @@ functions:
 
 resources:
   Resources:
-    # =============================================================================
-    # API GATEWAY USAGE PLANS FOR RATE LIMITING
-    # =============================================================================
-    # Temporarily commented out for initial deployment
-    # Will add after base deployment succeeds
-    
-    # PublicApiUsagePlan:
-    #   Type: AWS::ApiGateway::UsagePlan
-    #   Properties:
-    #     UsagePlanName: ${self:service}-public-api-${opt:stage, self:provider.stage}
-    #     Description: Rate limiting for public GET endpoints (routes and live buses)
-    #     Throttle:
-    #       BurstLimit: 100    # Max concurrent requests
-    #       RateLimit: 50      # Requests per second (3000 per minute)
-    #     Quota:
-    #       Limit: 10000       # Max requests per day
-    #       Period: DAY        # Reset period (DAY, WEEK, MONTH)
-    #     ApiStages:
-    #       - ApiId:
-    #           Ref: RestApiApigwRestApi
-    #         Stage: ${opt:stage, self:provider.stage}
-
-    # API Key for public endpoints rate limiting
-    # PublicApiKey:
-    #   Type: AWS::ApiGateway::ApiKey
-    #   Properties:
-    #     Name: ${self:service}-public-key-${opt:stage, self:provider.stage}
-    #     Description: API Key for rate limiting public endpoints
-    #     Enabled: true
-
-    # Link API Key to Usage Plan
-    # PublicApiUsagePlanKey:
-    #   Type: AWS::ApiGateway::UsagePlanKey
-    #   Properties:
-    #     KeyId:
-    #       Ref: PublicApiKey
-    #     KeyType: API_KEY
-    #     UsagePlanId:
-    #       Ref: PublicApiUsagePlan
-
-    # Higher limits for authenticated endpoints
-    # AuthenticatedApiUsagePlan:
-    #   Type: AWS::ApiGateway::UsagePlan
-    #   Properties:
-    #     UsagePlanName: ${self:service}-authenticated-api-${opt:stage, self:provider.stage}
-    #     Description: Rate limiting for authenticated endpoints (higher limits)
-    #     Throttle:
-    #       BurstLimit: 200    # Max concurrent requests
-    #       RateLimit: 100     # Requests per second (6000 per minute)
-    #     Quota:
-    #       Limit: 50000       # Max requests per day
-    #       Period: DAY        # Reset period
-    #     ApiStages:
-    #       - ApiId:
-    #           Ref: RestApiApigwRestApi
-    #         Stage: ${opt:stage, self:provider.stage}
-
-    # API Key for authenticated endpoints
-    # AuthenticatedApiKey:
-    #   Type: AWS::ApiGateway::ApiKey
-    #   Properties:
-    #     Name: ${self:service}-auth-key-${opt:stage, self:provider.stage}
-    #     Description: API Key for rate limiting authenticated endpoints
-    #     Enabled: true
-
-    # Link authenticated API Key to Usage Plan
-    # AuthenticatedApiUsagePlanKey:
-    #   Type: AWS::ApiGateway::UsagePlanKey
-    #   Properties:
-    #     KeyId:
-    #       Ref: AuthenticatedApiKey
-    #     KeyType: API_KEY
-    #     UsagePlanId:
-    #       Ref: AuthenticatedApiUsagePlan
 
     # =============================================================================
     # DYNAMODB TABLES
@@ -829,8 +755,7 @@ resources:
           - AttributeName: RouteID
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
-        # Additional attributes: route_name, start_location, end_location, description, total_stops
-        # These are stored as document attributes and don't need to be defined in AttributeDefinitions
+ 
 
     BusesTable:
       Type: AWS::DynamoDB::Table
@@ -852,8 +777,7 @@ resources:
             Projection:
               ProjectionType: ALL
         BillingMode: PAY_PER_REQUEST
-        # Additional attributes: route_id, capacity, license_plate, status
-        # These are stored as document attributes and don't need to be defined in AttributeDefinitions
+
 
     LocationsTable:
       Type: AWS::DynamoDB::Table
@@ -918,8 +842,7 @@ resources:
         TimeToLiveSpecification:
           AttributeName: ttl
           Enabled: true
-        # Additional attributes: latitude, longitude, speed, heading, geohash
-        # These are stored as document attributes and don't need to be defined in AttributeDefinitions
+   
 
     # =============================================================================
     # USERS TABLE FOR AUTHENTICATION
@@ -952,8 +875,7 @@ resources:
             Projection:
               ProjectionType: ALL
         BillingMode: PAY_PER_REQUEST
-        # Additional attributes: password, role, name, operatorId, isActive, createdAt, lastLoginAt
-        # These are stored as document attributes and don't need to be defined in AttributeDefinitions
+   
 
     # =============================================================================
     # SCHEDULES TABLE FOR BUS SCHEDULES
@@ -1343,42 +1265,8 @@ resources:
       Export:
         Name: ${self:service}-${opt:stage, self:provider.stage}-nat-gateway
 
-    # =============================================================================
-    # API GATEWAY RATE LIMITING OUTPUTS - Temporarily commented out
-    # =============================================================================
-    # PublicApiKey:
-    #   Description: API Key for public endpoints rate limiting
-    #   Value: !Ref PublicApiKey
-    #   Export:
-    #     Name: ${self:service}-${opt:stage, self:provider.stage}-public-api-key
-
-    # AuthenticatedApiKey:
-    #   Description: API Key for authenticated endpoints rate limiting
-    #   Value: !Ref AuthenticatedApiKey
-    #   Export:
-    #     Name: ${self:service}-${opt:stage, self:provider.stage}-auth-api-key
-
-    # PublicUsagePlanId:
-    #   Description: Usage Plan ID for public endpoints
-    #   Value: !Ref PublicApiUsagePlan
-    #   Export:
-    #     Name: ${self:service}-${opt:stage, self:provider.stage}-public-usage-plan
-
-    # AuthenticatedUsagePlanId:
-    #   Description: Usage Plan ID for authenticated endpoints
-    #   Value: !Ref AuthenticatedApiUsagePlan
-    #   Export:
-    #     Name: ${self:service}-${opt:stage, self:provider.stage}-auth-usage-plan
-
-    # Commented out temporarily for base deployment
-    # ApiGatewayRestApiId:
-    #   Description: API Gateway REST API ID
-    #   Value: !Ref RestApiApigwRestApi
-    #   Export:
-    #     Name: ${self:service}-${opt:stage, self:provider.stage}-api-gateway-id
-
+ 
 plugins:
   - serverless-offline
   - serverless-dynamodb-local
-  # Uncomment for production VPC deployment
-  # - serverless-vpc-plugin
+
