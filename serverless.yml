@@ -18,21 +18,13 @@ provider:
     LIVE_LOCATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-live-locations
     SCHEDULES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-schedules
     USERS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-users
-    REDIS_HOST: ${self:custom.redis.${opt:stage, self:provider.stage}.host}
-    REDIS_PORT: ${self:custom.redis.${opt:stage, self:provider.stage}.port}
-    REDIS_ENDPOINT: 
-      Fn::If:
-        - IsProduction
-        - Fn::GetAtt: [RedisReplicationGroup, PrimaryEndPoint.Address]
-        - "localhost"
-    REDIS_PORT_REF:
-      Fn::If:
-        - IsProduction
-        - Fn::GetAtt: [RedisReplicationGroup, PrimaryEndPoint.Port]
-        - 6379
     NODE_ENV: ${opt:stage, self:provider.stage}
-    JWT_SECRET: ${env:JWT_SECRET, 'dev-secret-key-change-in-production'}
-    REDIS_URL: ${env:REDIS_URL, ''}
+    # Production secrets from SSM Parameter Store
+    JWT_SECRET: ${ssm:/bus-tracking-system/${opt:stage, self:provider.stage}/jwt-secret}
+    # Redis configuration (disabled for production safety)
+    REDIS_URL: ''
+    REDIS_HOST: ''
+    REDIS_PORT: ''
 
   # VPC configuration for Redis access in production
   vpc:
@@ -96,6 +88,15 @@ provider:
             - logs:DescribeLogEvents
             - logs:DescribeLogStreams
           Resource: "arn:aws:logs:${opt:region, self:provider.region}:*:log-group:/aws/lambda/${self:service}-${opt:stage, self:provider.stage}*:*"
+
+        # SSM Parameter Store permissions for secrets management
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+            - ssm:GetParametersByPath
+          Resource: 
+            - "arn:aws:ssm:${opt:region, self:provider.region}:*:parameter/${self:service}/${opt:stage, self:provider.stage}/*"
 
         # Note: Additional deployment permissions are provided via the IAM policy
         # attached to the deployment user/role (see iam-policy.json)
@@ -755,6 +756,17 @@ resources:
           - AttributeName: RouteID
             KeyType: HASH
         BillingMode: PAY_PER_REQUEST
+        # Production-ready settings
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        DeletionProtectionEnabled: true
+        Tags:
+          - Key: Environment
+            Value: ${opt:stage, self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
+          - Key: Component
+            Value: Routes
  
 
     BusesTable:
@@ -777,6 +789,17 @@ resources:
             Projection:
               ProjectionType: ALL
         BillingMode: PAY_PER_REQUEST
+        # Production-ready settings
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        DeletionProtectionEnabled: true
+        Tags:
+          - Key: Environment
+            Value: ${opt:stage, self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
+          - Key: Component
+            Value: Buses
 
 
     LocationsTable:
@@ -810,6 +833,17 @@ resources:
         TimeToLiveSpecification:
           AttributeName: ttl
           Enabled: true
+        # Production-ready settings
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        DeletionProtectionEnabled: true
+        Tags:
+          - Key: Environment
+            Value: ${opt:stage, self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
+          - Key: Component
+            Value: Locations
 
     LiveLocationsTable:
       Type: AWS::DynamoDB::Table
@@ -1185,7 +1219,7 @@ resources:
     IsProduction:
       Fn::Equals:
         - ${opt:stage, self:provider.stage}
-        - prod
+        - never-create-redis-disabled-for-production
 
   Outputs:
     VPCId:

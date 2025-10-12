@@ -1,0 +1,443 @@
+service: bus-tracking-system
+
+# Configuration validation settings
+configValidationMode: error
+
+provider:
+  name: aws
+  runtime: nodejs18.x
+  stage: ${opt:stage, 'dev'}
+  region: ${opt:region, 'ap-south-1'}
+  memorySize: 256
+  timeout: 30
+
+  environment:
+    ROUTES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-routes
+    BUSES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-buses
+    LOCATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-locations
+    LIVE_LOCATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-live-locations
+    SCHEDULES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-schedules
+    USERS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-users
+    NODE_ENV: ${opt:stage, self:provider.stage}
+    # Production secrets from SSM Parameter Store
+    JWT_SECRET: ${ssm:/bus-tracking-system/${opt:stage, self:provider.stage}/jwt-secret}
+    # Redis configuration (disabled for production safety)
+    REDIS_URL: ''
+    REDIS_HOST: ''
+    REDIS_PORT: ''
+
+  iam:
+    role:
+      name: bus-tracking-system-${opt:stage, self:provider.stage}-lambda-role
+      path: /
+      statements:
+        # DynamoDB permissions for all tables and indexes
+        - Effect: Allow
+          Action:
+            - dynamodb:GetItem
+            - dynamodb:PutItem
+            - dynamodb:Query
+            - dynamodb:Scan
+            - dynamodb:UpdateItem
+            - dynamodb:DeleteItem
+            - dynamodb:DescribeTable
+            - dynamodb:BatchWriteItem
+            - dynamodb:BatchGetItem
+          Resource:
+            # Routes table and indexes
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.ROUTES_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.ROUTES_TABLE}/index/*"
+            # Buses table and indexes
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.BUSES_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.BUSES_TABLE}/index/*"
+            # Locations table and indexes
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LOCATIONS_TABLE}/index/*"
+            # Live locations table and indexes
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LIVE_LOCATIONS_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.LIVE_LOCATIONS_TABLE}/index/*"
+            # Schedules table and indexes
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.SCHEDULES_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.SCHEDULES_TABLE}/index/*"
+            # Users table and indexes
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.USERS_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.USERS_TABLE}/index/*"
+
+        # SSM Parameter Store permissions for secure secrets access
+        - Effect: Allow
+          Action:
+            - ssm:GetParameter
+            - ssm:GetParameters
+            - ssm:GetParametersByPath
+          Resource:
+            - "arn:aws:ssm:${opt:region, self:provider.region}:*:parameter/bus-tracking-system/${opt:stage, self:provider.stage}/*"
+
+# Lambda functions definitions
+functions:
+  # Health check endpoint
+  health:
+    handler: src/handlers/health.handler
+    events:
+      - http:
+          path: /health
+          method: get
+          cors: true
+
+  # Public endpoints (no authentication required)
+  publicGetRoutes:
+    handler: src/handlers/public/routes.getRoutes
+    events:
+      - http:
+          path: /public/routes
+          method: get
+          cors: true
+
+  publicGetBuses:
+    handler: src/handlers/public/buses.getBuses
+    events:
+      - http:
+          path: /public/buses
+          method: get
+          cors: true
+
+  publicGetSchedules:
+    handler: src/handlers/public/schedules.getSchedules
+    events:
+      - http:
+          path: /public/schedules
+          method: get
+          cors: true
+
+  publicGetBusLocation:
+    handler: src/handlers/public/location.getBusLocation
+    events:
+      - http:
+          path: /public/location/{busId}
+          method: get
+          cors: true
+
+  # Operator endpoints (OPERATOR role authentication required)
+  operatorGetBus:
+    handler: src/handlers/operator/buses.getBus
+    events:
+      - http:
+          path: /operator/buses/{busId}
+          method: get
+          cors: true
+
+  operatorUpdateBus:
+    handler: src/handlers/operator/buses.updateBus
+    events:
+      - http:
+          path: /operator/buses/{busId}
+          method: put
+          cors: true
+
+  operatorCreateBus:
+    handler: src/handlers/operator/buses.createBus
+    events:
+      - http:
+          path: /operator/buses
+          method: post
+          cors: true
+
+  operatorUpdateLocation:
+    handler: src/handlers/location.updateLocation
+    events:
+      - http:
+          path: /operator/location
+          method: post
+          cors: true
+
+  # Admin endpoints (NTC role authentication required)
+  adminGetBuses:
+    handler: src/handlers/admin/buses.getBuses
+    events:
+      - http:
+          path: /admin/buses
+          method: get
+          cors: true
+
+  adminCreateBus:
+    handler: src/handlers/admin/buses.createBus
+    events:
+      - http:
+          path: /admin/buses
+          method: post
+          cors: true
+
+  adminUpdateBus:
+    handler: src/handlers/admin/buses.updateBus
+    events:
+      - http:
+          path: /admin/buses/{busId}
+          method: put
+          cors: true
+
+  adminDeleteBus:
+    handler: src/handlers/admin/buses.deleteBus
+    events:
+      - http:
+          path: /admin/buses/{busId}
+          method: delete
+          cors: true
+
+  adminGetRoutes:
+    handler: src/handlers/admin/routes.getRoutes
+    events:
+      - http:
+          path: /admin/routes
+          method: get
+          cors: true
+
+  adminGetBusHistory:
+    handler: src/handlers/admin/buses.getBusHistory
+    events:
+      - http:
+          path: /admin/buses/{busId}/history
+          method: get
+          cors: true
+
+# DynamoDB table resources with production settings
+resources:
+  Resources:
+    # Routes table
+    RoutesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.ROUTES_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: RouteID
+            AttributeType: S
+          - AttributeName: RouteName
+            AttributeType: S
+        KeySchema:
+          - AttributeName: RouteID
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: RouteName-index
+            KeySchema:
+              - AttributeName: RouteName
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        DeletionProtectionEnabled: true
+        Tags:
+          - Key: Environment
+            Value: ${opt:stage, self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
+
+    # Buses table
+    BusesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.BUSES_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: BusID
+            AttributeType: S
+          - AttributeName: OperatorID
+            AttributeType: S
+          - AttributeName: RouteID
+            AttributeType: S
+          - AttributeName: Status
+            AttributeType: S
+        KeySchema:
+          - AttributeName: BusID
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: OperatorID-index
+            KeySchema:
+              - AttributeName: OperatorID
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: RouteID-index
+            KeySchema:
+              - AttributeName: RouteID
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: Status-index
+            KeySchema:
+              - AttributeName: Status
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        DeletionProtectionEnabled: true
+        Tags:
+          - Key: Environment
+            Value: ${opt:stage, self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
+
+    # Locations table
+    LocationsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.LOCATIONS_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: LocationID
+            AttributeType: S
+          - AttributeName: BusID
+            AttributeType: S
+          - AttributeName: Timestamp
+            AttributeType: S
+        KeySchema:
+          - AttributeName: LocationID
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: BusID-Timestamp-index
+            KeySchema:
+              - AttributeName: BusID
+                KeyType: HASH
+              - AttributeName: Timestamp
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        DeletionProtectionEnabled: true
+        Tags:
+          - Key: Environment
+            Value: ${opt:stage, self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
+
+    # Live Locations table
+    LiveLocationsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.LIVE_LOCATIONS_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: BusID
+            AttributeType: S
+        KeySchema:
+          - AttributeName: BusID
+            KeyType: HASH
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        DeletionProtectionEnabled: true
+        Tags:
+          - Key: Environment
+            Value: ${opt:stage, self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
+
+    # Schedules table
+    SchedulesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.SCHEDULES_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: ScheduleID
+            AttributeType: S
+          - AttributeName: RouteID
+            AttributeType: S
+          - AttributeName: BusID
+            AttributeType: S
+        KeySchema:
+          - AttributeName: ScheduleID
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: RouteID-index
+            KeySchema:
+              - AttributeName: RouteID
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: BusID-index
+            KeySchema:
+              - AttributeName: BusID
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        DeletionProtectionEnabled: true
+        Tags:
+          - Key: Environment
+            Value: ${opt:stage, self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
+
+    # Users table
+    UsersTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:provider.environment.USERS_TABLE}
+        BillingMode: PAY_PER_REQUEST
+        AttributeDefinitions:
+          - AttributeName: UserID
+            AttributeType: S
+          - AttributeName: Username
+            AttributeType: S
+          - AttributeName: Role
+            AttributeType: S
+        KeySchema:
+          - AttributeName: UserID
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: Username-index
+            KeySchema:
+              - AttributeName: Username
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+          - IndexName: Role-index
+            KeySchema:
+              - AttributeName: Role
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        PointInTimeRecoverySpecification:
+          PointInTimeRecoveryEnabled: true
+        DeletionProtectionEnabled: true
+        Tags:
+          - Key: Environment
+            Value: ${opt:stage, self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
+
+  Outputs:
+    RoutesTableName:
+      Value: !Ref RoutesTable
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-routes-table
+    
+    BusesTableName:
+      Value: !Ref BusesTable
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-buses-table
+    
+    LocationsTableName:
+      Value: !Ref LocationsTable
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-locations-table
+    
+    LiveLocationsTableName:
+      Value: !Ref LiveLocationsTable
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-live-locations-table
+    
+    SchedulesTableName:
+      Value: !Ref SchedulesTable
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-schedules-table
+    
+    UsersTableName:
+      Value: !Ref UsersTable
+      Export:
+        Name: ${self:service}-${opt:stage, self:provider.stage}-users-table
+
+plugins:
+  - serverless-offline
