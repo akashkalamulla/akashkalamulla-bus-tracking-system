@@ -1,19 +1,23 @@
-const AWS = require('aws-sdk');
-const Redis = require('ioredis');
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+const { DynamoDBDocumentClient, ScanCommand, GetCommand, PutCommand, UpdateCommand, DeleteCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
+// const Redis = require('ioredis');
 const { getUserContext } = require('../auth');
-const { logger } = require('../../utils/logger');
+const { error: logError, warn: logWarn, info: logInfo, debug: logDebug } = require('../../utils/logger');
 const { successResponse, errorResponse } = require('../../utils/response');
-const { withRateLimit } = require('../../utils/rate-limiter');
+// const { withRateLimit } = require('../../utils/rate-limiter');
 
-// Initialize services
-const dynamodb = new AWS.DynamoDB.DocumentClient();
-const redis = new Redis({
-  host: process.env.REDIS_HOST,
-  port: process.env.REDIS_PORT || 6379,
-  retryDelayOnFailure: 100,
-  maxRetriesPerRequest: 3,
-  lazyConnect: true
-});
+// Initialize DynamoDB client
+const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
+const dynamodb = DynamoDBDocumentClient.from(client);
+
+// Disable Redis temporarily
+// const redis = new Redis({
+//   host: process.env.REDIS_HOST,
+//   port: process.env.REDIS_PORT || 6379,
+//   retryDelayOnFailure: 100,
+//   maxRetriesPerRequest: 3,
+//   lazyConnect: true
+// });
 
 const BUSES_TABLE = process.env.BUSES_TABLE || 'Buses';
 const LOCATIONS_TABLE = process.env.LOCATIONS_TABLE || 'BusLocations';
@@ -84,7 +88,7 @@ async function validateBusOwnership(busId, operatorId) {
       ProjectionExpression: 'OperatorID'
     };
     
-    const result = await dynamodb.get(params).promise();
+    const result = await dynamodb.send(new GetCommand(params));
     
     if (!result.Item) {
       return { valid: false, notFound: true };
@@ -96,7 +100,7 @@ async function validateBusOwnership(busId, operatorId) {
     
     return { valid: true, notFound: false };
   } catch (error) {
-    logger.error('Error validating bus ownership:', error);
+    logError('Error validating bus ownership:', error);
     throw error;
   }
 }
@@ -114,8 +118,8 @@ async function invalidateBusCache(busId, operatorId) {
       `buses:live:*`
     ];
     
-    await redis.del(...cacheKeys);
-    logger.info(`Invalidated cache for bus ${busId}`);
+    // await redis.del(...cacheKeys); // Redis temporarily disabled
+    logInfo(`Invalidated cache for bus ${busId}`);
   } catch (error) {
     logger.warn('Failed to invalidate cache:', error);
   }
@@ -125,7 +129,7 @@ async function invalidateBusCache(busId, operatorId) {
  * Logs operator actions for audit trail
  */
 function logOperatorAction(operatorId, action, busId, details = {}) {
-  logger.info('Operator action', {
+  logInfo('Operator action', {
     operatorId,
     action,
     busId,
@@ -143,14 +147,14 @@ async function getBuses(event) {
     const userContext = getUserContext(event);
     const operatorId = userContext.operatorId;
     
-    // Check cache first
-    const cacheKey = `operator:buses:${operatorId}`;
-    let buses = await redis.get(cacheKey);
+    // Check cache first - Redis temporarily disabled
+    // const cacheKey = `operator:buses:${operatorId}`;
+    // let buses = await redis.get(cacheKey);
     
-    if (buses) {
-      logger.info(`Cache hit for operator buses: ${operatorId}`);
-      return successResponse(JSON.parse(buses));
-    }
+    // if (buses) {
+    //   logInfo(`Cache hit for operator buses: ${operatorId}`);
+    //   return successResponse(JSON.parse(buses));
+    // }
     
     // Query DynamoDB for operator's buses
     const params = {
@@ -162,17 +166,17 @@ async function getBuses(event) {
       }
     };
     
-    const result = await dynamodb.query(params).promise();
+    const result = await dynamodb.send(new QueryCommand(params));
     
-    // Cache the results
-    await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result.Items));
+    // Cache the results - Redis temporarily disabled
+    // await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result.Items));
     
     logOperatorAction(operatorId, 'GET_BUSES', null, { count: result.Items.length });
     
     return successResponse(result.Items);
     
   } catch (error) {
-    logger.error('Error getting operator buses:', error);
+    logError('Error getting operator buses:', error);
     return errorResponse(500, 'Failed to retrieve buses');
   }
 }
@@ -196,14 +200,14 @@ async function getBus(event) {
       return errorResponse(403, 'Access denied: You can only access your own buses');
     }
     
-    // Check cache first
-    const cacheKey = `operator:bus:${busId}`;
-    let bus = await redis.get(cacheKey);
+    // Check cache first - Redis temporarily disabled
+    // const cacheKey = `operator:bus:${busId}`;
+    // let bus = await redis.get(cacheKey);
     
-    if (bus) {
-      logger.info(`Cache hit for bus: ${busId}`);
-      return successResponse(JSON.parse(bus));
-    }
+    // if (bus) {
+    //   logInfo(`Cache hit for bus: ${busId}`);
+    //   return successResponse(JSON.parse(bus));
+    // }
     
     // Get from DynamoDB
     const params = {
@@ -211,21 +215,21 @@ async function getBus(event) {
       Key: { BusID: busId }
     };
     
-    const result = await dynamodb.get(params).promise();
+    const result = await dynamodb.send(new GetCommand(params));
     
     if (!result.Item) {
       return errorResponse(404, 'Bus not found');
     }
     
-    // Cache the result
-    await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result.Item));
+    // Cache the result - Redis temporarily disabled
+    // await redis.setex(cacheKey, CACHE_TTL, JSON.stringify(result.Item));
     
     logOperatorAction(operatorId, 'GET_BUS', busId);
     
     return successResponse(result.Item);
     
   } catch (error) {
-    logger.error('Error getting bus:', error);
+    logError('Error getting bus:', error);
     return errorResponse(500, 'Failed to retrieve bus');
   }
 }
@@ -257,7 +261,7 @@ async function createBus(event) {
       }
     };
     
-    const existingBus = await dynamodb.scan(existingBusParams).promise();
+    const existingBus = await dynamodb.send(new ScanCommand(existingBusParams));
     if (existingBus.Items.length > 0) {
       return errorResponse(409, 'Bus number already exists for your operator');
     }
@@ -285,7 +289,7 @@ async function createBus(event) {
       ConditionExpression: 'attribute_not_exists(BusID)'
     };
     
-    await dynamodb.put(params).promise();
+    await dynamodb.send(new PutCommand(params));
     
     // Invalidate cache
     await invalidateBusCache(busId, operatorId);
@@ -377,7 +381,7 @@ async function updateBus(event) {
       ReturnValues: 'ALL_NEW'
     };
     
-    const result = await dynamodb.update(params).promise();
+    const result = await dynamodb.send(new UpdateCommand(params));
     
     // Invalidate cache
     await invalidateBusCache(busId, operatorId);
@@ -387,7 +391,7 @@ async function updateBus(event) {
     return successResponse(result.Attributes);
     
   } catch (error) {
-    logger.error('Error updating bus:', error);
+    logError('Error updating bus:', error);
     return errorResponse(500, 'Failed to update bus');
   }
 }
@@ -417,7 +421,7 @@ async function deleteBus(event) {
       ConditionExpression: 'attribute_exists(BusID)'
     };
     
-    await dynamodb.delete(params).promise();
+    await dynamodb.send(new DeleteCommand(params));
     
     // Invalidate cache
     await invalidateBusCache(busId, operatorId);
@@ -430,7 +434,7 @@ async function deleteBus(event) {
     if (error.code === 'ConditionalCheckFailedException') {
       return errorResponse(404, 'Bus not found');
     }
-    logger.error('Error deleting bus:', error);
+    logError('Error deleting bus:', error);
     return errorResponse(500, 'Failed to delete bus');
   }
 }
@@ -492,7 +496,7 @@ async function updateLocation(event) {
       Item: locationRecord
     };
     
-    await dynamodb.put(locationParams).promise();
+    await dynamodb.send(new PutCommand(locationParams));
     
     // Update bus's last known location
     const busUpdateParams = {
@@ -510,11 +514,11 @@ async function updateLocation(event) {
       }
     };
     
-    await dynamodb.update(busUpdateParams).promise();
+    await dynamodb.send(new UpdateCommand(busUpdateParams));
     
     // Update Redis cache for real-time data
     const realTimeCacheKey = `bus:location:${busId}`;
-    await redis.setex(realTimeCacheKey, 60, JSON.stringify(locationRecord)); // 1 minute TTL for real-time data
+    // await redis.setex(realTimeCacheKey, 60, JSON.stringify(locationRecord)); // Redis temporarily disabled
     
     // Invalidate other caches
     await invalidateBusCache(busId, operatorId);
@@ -532,7 +536,7 @@ async function updateLocation(event) {
     });
     
   } catch (error) {
-    logger.error('Error updating location:', error);
+    logError('Error updating location:', error);
     return errorResponse(500, 'Failed to update location');
   }
 }
@@ -556,14 +560,14 @@ async function getLocation(event) {
       return errorResponse(403, 'Access denied: You can only access locations for your own buses');
     }
     
-    // Check real-time cache first
-    const cacheKey = `bus:location:${busId}`;
-    let location = await redis.get(cacheKey);
+    // Check real-time cache first - Redis temporarily disabled
+    // const cacheKey = `bus:location:${busId}`;
+    // let location = await redis.get(cacheKey);
     
-    if (location) {
-      logger.info(`Cache hit for bus location: ${busId}`);
-      return successResponse(JSON.parse(location));
-    }
+    // if (location) {
+    //   logInfo(`Cache hit for bus location: ${busId}`);
+    //   return successResponse(JSON.parse(location));
+    // }
     
     // Get latest location from DynamoDB
     const params = {
@@ -576,7 +580,7 @@ async function getLocation(event) {
       Limit: 1
     };
     
-    const result = await dynamodb.query(params).promise();
+    const result = await dynamodb.send(new QueryCommand(params));
     
     if (result.Items.length === 0) {
       return errorResponse(404, 'No location data found for this bus');
@@ -585,24 +589,24 @@ async function getLocation(event) {
     const latestLocation = result.Items[0];
     
     // Cache for 30 seconds
-    await redis.setex(cacheKey, 30, JSON.stringify(latestLocation));
+    // await redis.setex(cacheKey, 30, JSON.stringify(latestLocation)); // Redis temporarily disabled
     
     logOperatorAction(operatorId, 'GET_LOCATION', busId);
     
     return successResponse(latestLocation);
     
   } catch (error) {
-    logger.error('Error getting location:', error);
+    logError('Error getting location:', error);
     return errorResponse(500, 'Failed to retrieve location');
   }
 }
 
 module.exports = {
-  getBuses: withRateLimit(getBuses, 'OPERATOR'),
-  getBus: withRateLimit(getBus, 'OPERATOR'),
-  createBus: withRateLimit(createBus, 'OPERATOR'),
-  updateBus: withRateLimit(updateBus, 'OPERATOR'),
-  deleteBus: withRateLimit(deleteBus, 'OPERATOR'),
-  updateLocation: withRateLimit(updateLocation, 'OPERATOR'),
-  getLocation: withRateLimit(getLocation, 'OPERATOR')
+  getBuses: getBuses,
+  getBus: getBus,
+  createBus: createBus,
+  updateBus: updateBus,
+  deleteBus: deleteBus,
+  updateLocation: updateLocation,
+  getLocation: getLocation
 };

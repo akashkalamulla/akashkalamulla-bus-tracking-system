@@ -1,23 +1,36 @@
-const AWS = require('aws-sdk');
-const Redis = require('ioredis');
+const { DynamoDBClient } = require('@aws-sdk/client-dynamodb');
+const { DynamoDBDocumentClient, ScanCommand, GetCommand, QueryCommand } = require('@aws-sdk/lib-dynamodb');
+// const Redis = require('ioredis');
 const crypto = require('crypto');
-const { logger } = require('../../utils/logger');
+const { error: logError, warn: logWarn, info: logInfo, debug: logDebug } = require('../../utils/logger');
 const { successResponse, errorResponse } = require('../../utils/response');
-const { withRateLimit, addRateLimitHeaders } = require('../../utils/rate-limiter');
 
-// Initialize services
-const dynamodb = new AWS.DynamoDB.DocumentClient();
-const redis = new Redis({
-  host: process.env.REDIS_HOST,
-  port: process.env.REDIS_PORT || 6379,
-  retryDelayOnFailure: 100,
-  maxRetriesPerRequest: 3,
-  lazyConnect: true
-});
+// Initialize DynamoDB client
+const client = new DynamoDBClient({ region: process.env.AWS_REGION || 'ap-south-1' });
+const dynamodb = DynamoDBDocumentClient.from(client);
+
+// Redis temporarily disabled
+// const redis = new Redis({
+//   host: process.env.REDIS_HOST,
+//   port: process.env.REDIS_PORT || 6379,
+//   retryDelayOnFailure: 100,
+//   maxRetriesPerRequest: 3,
+//   lazyConnect: true
+// });
 
 const ROUTES_TABLE = process.env.ROUTES_TABLE || 'BusRoutes';
 const BUSES_TABLE = process.env.BUSES_TABLE || 'Buses';
 const LOCATIONS_TABLE = process.env.LOCATIONS_TABLE || 'BusLocations';
+
+// Debug environment variables
+logInfo('Environment variables', {
+  ROUTES_TABLE: process.env.ROUTES_TABLE,
+  BUSES_TABLE: process.env.BUSES_TABLE,
+  LOCATIONS_TABLE: process.env.LOCATIONS_TABLE,
+  actual_ROUTES_TABLE: ROUTES_TABLE,
+  actual_BUSES_TABLE: BUSES_TABLE,
+  actual_LOCATIONS_TABLE: LOCATIONS_TABLE
+});
 
 // Cache TTL settings (aggressive caching for public data)
 const CACHE_TTL = {
@@ -147,8 +160,8 @@ async function getRoutes(event) {
     const { limit, page, offset } = parsePaginationParams(event);
     const cacheKey = `public:routes:page:${page}:limit:${limit}`;
     
-    // Check Redis cache first
-    let cachedData = await redis.get(cacheKey);
+    // Redis cache disabled - skip cache check
+    let cachedData = null;
     
     if (cachedData) {
       const data = JSON.parse(cachedData);
@@ -156,11 +169,11 @@ async function getRoutes(event) {
       
       // Check client-side cache
       if (checkClientCache(event, etag)) {
-        logger.info('Client cache hit for routes', { page, limit });
+        logInfo('Client cache hit for routes', { page, limit });
         return createNotModifiedResponse();
       }
       
-      logger.info('Redis cache hit for routes', { page, limit });
+      logInfo('Redis cache hit for routes', { page, limit });
       return createCachedResponse(data, CACHE_TTL.ROUTES);
     }
     
@@ -170,7 +183,7 @@ async function getRoutes(event) {
       Select: 'COUNT'
     };
     
-    const countResult = await dynamodb.scan(countParams).promise();
+    const countResult = await dynamodb.send(new ScanCommand(countParams));
     const totalCount = countResult.Count;
     
     // Get paginated routes
@@ -186,7 +199,7 @@ async function getRoutes(event) {
       params.ExclusiveStartKey = undefined; // Simplified for demo
     }
     
-    const result = await dynamodb.scan(params).promise();
+    const result = await dynamodb.send(new ScanCommand(params));
     
     // Create paginated response
     const baseUrl = `${event.requestContext.domainName}${event.requestContext.path}`;
@@ -199,13 +212,13 @@ async function getRoutes(event) {
     );
     
     // Cache for 1 hour (routes don't change frequently)
-    await redis.setex(cacheKey, CACHE_TTL.ROUTES, JSON.stringify(responseData));
+    // Redis caching disabled
     
     // Also cache a general routes list
     const allRoutesKey = 'public:routes:all';
-    await redis.setex(allRoutesKey, CACHE_TTL.ROUTES, JSON.stringify(result.Items));
+    // Redis caching disabled
     
-    logger.info('Routes retrieved and cached', { 
+    logInfo('Routes retrieved and cached', { 
       page, 
       limit, 
       totalCount, 
@@ -215,7 +228,7 @@ async function getRoutes(event) {
     return createCachedResponse(responseData, CACHE_TTL.ROUTES);
     
   } catch (error) {
-    logger.error('Error getting routes:', error);
+    logError('Error getting routes:', error);
     return errorResponse(500, 'Failed to retrieve routes');
   }
 }
@@ -229,8 +242,8 @@ async function getRoute(event) {
     const routeId = event.pathParameters.routeId;
     const cacheKey = `public:route:${routeId}`;
     
-    // Check Redis cache first
-    let cachedData = await redis.get(cacheKey);
+    // Redis cache disabled - skip cache check
+    let cachedData = null;
     
     if (cachedData) {
       const data = JSON.parse(cachedData);
@@ -238,11 +251,11 @@ async function getRoute(event) {
       
       // Check client-side cache
       if (checkClientCache(event, etag)) {
-        logger.info('Client cache hit for route', { routeId });
+        logInfo('Client cache hit for route', { routeId });
         return createNotModifiedResponse();
       }
       
-      logger.info('Redis cache hit for route', { routeId });
+      logInfo('Redis cache hit for route', { routeId });
       return createCachedResponse(data, CACHE_TTL.ROUTES);
     }
     
@@ -252,7 +265,7 @@ async function getRoute(event) {
       Key: { RouteID: routeId }
     };
     
-    const result = await dynamodb.get(params).promise();
+    const result = await dynamodb.send(new GetCommand(params));
     
     if (!result.Item) {
       return errorResponse(404, 'Route not found');
@@ -270,14 +283,14 @@ async function getRoute(event) {
     };
     
     // Cache for 1 hour
-    await redis.setex(cacheKey, CACHE_TTL.ROUTES, JSON.stringify(responseData));
+    // Redis caching disabled
     
-    logger.info('Route retrieved and cached', { routeId });
+    logInfo('Route retrieved and cached', { routeId });
     
     return createCachedResponse(responseData, CACHE_TTL.ROUTES);
     
   } catch (error) {
-    logger.error('Error getting route:', error);
+    logError('Error getting route:', error);
     return errorResponse(500, 'Failed to retrieve route');
   }
 }
@@ -291,8 +304,8 @@ async function getLiveBuses(event) {
     const routeId = event.pathParameters.routeId;
     const cacheKey = `public:live:buses:${routeId}`;
     
-    // Check Redis cache first (short TTL for live data)
-    let cachedData = await redis.get(cacheKey);
+    // Redis cache disabled - skip cache check  
+    let cachedData = null;
     
     if (cachedData) {
       const data = JSON.parse(cachedData);
@@ -301,11 +314,11 @@ async function getLiveBuses(event) {
       // Check client-side cache with shorter TTL
       const clientETag = event.headers['If-None-Match'];
       if (clientETag === etag) {
-        logger.info('Client cache hit for live buses', { routeId });
+        logInfo('Client cache hit for live buses', { routeId });
         return createNotModifiedResponse();
       }
       
-      logger.info('Redis cache hit for live buses', { routeId });
+      logInfo('Redis cache hit for live buses', { routeId });
       return createCachedResponse(data, CACHE_TTL.LIVE_BUSES);
     }
     
@@ -322,7 +335,7 @@ async function getLiveBuses(event) {
       }
     };
     
-    const busResult = await dynamodb.scan(busParams).promise();
+    const busResult = await dynamodb.send(new ScanCommand(busParams));
     
     if (busResult.Items.length === 0) {
       const emptyResponse = {
@@ -336,7 +349,7 @@ async function getLiveBuses(event) {
       };
       
       // Cache empty result for shorter time
-      await redis.setex(cacheKey, 60, JSON.stringify(emptyResponse));
+      // Redis caching disabled
       return createCachedResponse(emptyResponse, 60);
     }
     
@@ -346,7 +359,7 @@ async function getLiveBuses(event) {
       try {
         // Get latest location from cache first
         const locationCacheKey = `bus:location:${bus.BusID}`;
-        let location = await redis.get(locationCacheKey);
+        // let location = await redis.get(); // Redis disabled
         
         if (!location) {
           // Get from DynamoDB if not in cache
@@ -360,12 +373,12 @@ async function getLiveBuses(event) {
             Limit: 1
           };
           
-          const locationResult = await dynamodb.query(locationParams).promise();
+          const locationResult = await dynamodb.send(new QueryCommand());
           location = locationResult.Items[0];
           
           if (location) {
             // Cache location for 1 minute
-            await redis.setex(locationCacheKey, 60, JSON.stringify(location));
+            // Redis caching disabled
           }
         } else {
           location = JSON.parse(location);
@@ -395,7 +408,7 @@ async function getLiveBuses(event) {
           }
         }
       } catch (error) {
-        logger.warn('Error getting bus location', { busId: bus.BusID, error: error.message });
+        logWarn('Error getting bus location', { busId: bus.BusID, error: error.message });
       }
     });
     
@@ -414,9 +427,9 @@ async function getLiveBuses(event) {
     };
     
     // Cache for 30 seconds (live data needs frequent updates)
-    await redis.setex(cacheKey, CACHE_TTL.LIVE_BUSES, JSON.stringify(responseData));
+    // Redis caching disabled
     
-    logger.info('Live buses retrieved and cached', { 
+    logInfo('Live buses retrieved and cached', { 
       routeId, 
       liveBuses: liveBuses.length,
       totalBuses: busResult.Items.length
@@ -425,7 +438,7 @@ async function getLiveBuses(event) {
     return createCachedResponse(responseData, CACHE_TTL.LIVE_BUSES);
     
   } catch (error) {
-    logger.error('Error getting live buses:', error);
+    logError('Error getting live buses:', error);
     return errorResponse(500, 'Failed to retrieve live bus data');
   }
 }
@@ -447,18 +460,18 @@ async function searchRoutes(event) {
     const cacheKey = `public:routes:search:${encodeURIComponent(searchTerm)}:page:${page}:limit:${limit}`;
     
     // Check cache first
-    let cachedData = await redis.get(cacheKey);
+    // let cachedData = await redis.get(); // Redis disabled
     
     if (cachedData) {
       const data = JSON.parse(cachedData);
       const etag = generateETag(data);
       
       if (checkClientCache(event, etag)) {
-        logger.info('Client cache hit for route search', { searchTerm, page, limit });
+        logInfo('Client cache hit for route search', { searchTerm, page, limit });
         return createNotModifiedResponse();
       }
       
-      logger.info('Redis cache hit for route search', { searchTerm, page, limit });
+      logInfo('Redis cache hit for route search', { searchTerm, page, limit });
       return createCachedResponse(data, CACHE_TTL.ROUTES);
     }
     
@@ -471,7 +484,7 @@ async function searchRoutes(event) {
       }
     };
     
-    const result = await dynamodb.scan(params).promise();
+    const result = await dynamodb.send(new ScanCommand(params));
     
     // Apply pagination to results
     const startIndex = offset;
@@ -491,9 +504,9 @@ async function searchRoutes(event) {
     responseData.meta.totalMatches = result.Items.length;
     
     // Cache search results for 10 minutes
-    await redis.setex(cacheKey, 600, JSON.stringify(responseData));
+    // Redis caching disabled
     
-    logger.info('Route search completed and cached', { 
+    logInfo('Route search completed and cached', { 
       searchTerm, 
       matches: result.Items.length,
       page,
@@ -503,77 +516,8 @@ async function searchRoutes(event) {
     return createCachedResponse(responseData, 600);
     
   } catch (error) {
-    logger.error('Error searching routes:', error);
+    logError('Error searching routes:', error);
     return errorResponse(500, 'Failed to search routes');
-  }
-}
-
-/**
- * GET /public/stats
- * Get public statistics with caching
- */
-async function getPublicStats(event) {
-  try {
-    const cacheKey = 'public:stats:overview';
-    
-    // Check cache first
-    let cachedData = await redis.get(cacheKey);
-    
-    if (cachedData) {
-      const data = JSON.parse(cachedData);
-      const etag = generateETag(data);
-      
-      if (checkClientCache(event, etag)) {
-        logger.info('Client cache hit for public stats');
-        return createNotModifiedResponse();
-      }
-      
-      logger.info('Redis cache hit for public stats');
-      return createCachedResponse(data, CACHE_TTL.ROUTE_STATS);
-    }
-    
-    // Get statistics from DynamoDB
-    const [routeCount, busCount, activeBusCount] = await Promise.all([
-      // Count total routes
-      dynamodb.scan({ TableName: ROUTES_TABLE, Select: 'COUNT' }).promise(),
-      
-      // Count total buses
-      dynamodb.scan({ TableName: BUSES_TABLE, Select: 'COUNT' }).promise(),
-      
-      // Count active buses
-      dynamodb.scan({
-        TableName: BUSES_TABLE,
-        FilterExpression: '#status = :status',
-        ExpressionAttributeNames: { '#status': 'Status' },
-        ExpressionAttributeValues: { ':status': 'ACTIVE' },
-        Select: 'COUNT'
-      }).promise()
-    ]);
-    
-    const responseData = {
-      statistics: {
-        totalRoutes: routeCount.Count,
-        totalBuses: busCount.Count,
-        activeBuses: activeBusCount.Count,
-        systemUptime: process.uptime(),
-        lastUpdated: new Date().toISOString()
-      },
-      meta: {
-        cached: true,
-        timestamp: new Date().toISOString()
-      }
-    };
-    
-    // Cache for 10 minutes
-    await redis.setex(cacheKey, CACHE_TTL.ROUTE_STATS, JSON.stringify(responseData));
-    
-    logger.info('Public stats retrieved and cached', responseData.statistics);
-    
-    return createCachedResponse(responseData, CACHE_TTL.ROUTE_STATS);
-    
-  } catch (error) {
-    logger.error('Error getting public stats:', error);
-    return errorResponse(500, 'Failed to retrieve statistics');
   }
 }
 
@@ -584,8 +528,8 @@ async function getRouteStatistics(routeId) {
   const cacheKey = `route:stats:${routeId}`;
   
   try {
-    // Check cache first
-    let cachedStats = await redis.get(cacheKey);
+    // Redis cache disabled - skip cache check
+    let cachedStats = null;
     if (cachedStats) {
       return JSON.parse(cachedStats);
     }
@@ -614,8 +558,8 @@ async function getRouteStatistics(routeId) {
     };
     
     const [totalBuses, activeBuses] = await Promise.all([
-      dynamodb.scan(busParams).promise(),
-      dynamodb.scan(activeBusParams).promise()
+      dynamodb.send(new ScanCommand(busParams)),
+      dynamodb.send(new ScanCommand(activeBusParams))
     ]);
     
     const stats = {
@@ -625,12 +569,12 @@ async function getRouteStatistics(routeId) {
     };
     
     // Cache for 5 minutes
-    await redis.setex(cacheKey, 300, JSON.stringify(stats));
+    // Redis caching disabled
     
     return stats;
     
   } catch (error) {
-    logger.warn('Error getting route statistics', { routeId, error: error.message });
+    logWarn('Error getting route statistics', { routeId, error: error.message });
     return {
       totalBuses: 0,
       activeBuses: 0,
@@ -640,9 +584,8 @@ async function getRouteStatistics(routeId) {
 }
 
 module.exports = {
-  getRoutes: withRateLimit(getRoutes, 'PUBLIC'),
-  getRoute: withRateLimit(getRoute, 'PUBLIC'),
-  getLiveBuses: withRateLimit(getLiveBuses, 'PUBLIC'),
-  searchRoutes: withRateLimit(searchRoutes, 'SEARCH'),
-  getPublicStats: withRateLimit(getPublicStats, 'PUBLIC')
+  getRoutes: getRoutes,
+  getRoute: getRoute,
+  getLiveBuses: getLiveBuses,
+  searchRoutes: searchRoutes
 };

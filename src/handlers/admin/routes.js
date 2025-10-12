@@ -883,15 +883,15 @@ exports.deleteRoute = async (event) => {
   }
 };
 
-// Wrap exports with rate limiting
-const originalGetAllRoutes = exports.getAllRoutes;
-const originalGetRoute = exports.getRoute;
-const originalCreateRoute = exports.createRoute;
-const originalUpdateRoute = exports.updateRoute;
-const originalDeleteRoute = exports.deleteRoute;
+// Export functions directly without rate limiting for now
+// const originalGetAllRoutes = exports.getAllRoutes;
+// const originalGetRoute = exports.getRoute;
+// const originalCreateRoute = exports.createRoute;
+// const originalUpdateRoute = exports.updateRoute;
+// const originalDeleteRoute = exports.deleteRoute;
 
-exports.getAllRoutes = withRateLimit(originalGetAllRoutes, 'ADMIN');
-exports.getRoute = withRateLimit(originalGetRoute, 'ADMIN');
-exports.createRoute = withRateLimit(originalCreateRoute, 'ADMIN');
-exports.updateRoute = withRateLimit(originalUpdateRoute, 'ADMIN');
-exports.deleteRoute = withRateLimit(originalDeleteRoute, 'ADMIN');
+// exports.getAllRoutes = withRateLimit(originalGetAllRoutes, 'ADMIN');
+// exports.getRoute = withRateLimit(originalGetRoute, 'ADMIN');
+// exports.createRoute = withRateLimit(originalCreateRoute, 'ADMIN');
+// exports.updateRoute = withRateLimit(originalUpdateRoute, 'ADMIN');
+// exports.deleteRoute = withRateLimit(originalDeleteRoute, 'ADMIN');

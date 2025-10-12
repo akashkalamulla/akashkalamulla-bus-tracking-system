@@ -225,7 +225,7 @@ functions:
           path: public/routes/{routeId}/buses/live
           method: get
           cors: true
-          private: true  # Requires API key for rate limiting
+
           request:
             parameters:
               paths:
@@ -240,18 +240,7 @@ functions:
           path: public/routes/search
           method: get
           cors: true
-          private: true  # Requires API key for rate limiting
-          # No authorizer - public endpoint
 
-  publicGetStats:
-    handler: src/handlers/public/routes.getPublicStats
-    description: Public - Get system statistics (no auth required)
-    events:
-      - http:
-          path: public/stats
-          method: get
-          cors: true
-          private: true  # Requires API key for rate limiting
           # No authorizer - public endpoint
 
   # =============================================================================
@@ -265,7 +254,7 @@ functions:
           path: routes
           method: get
           cors: true
-          private: true  # Requires API key for rate limiting
+
           # No authorizer - public endpoint
 
   getRoute:
@@ -276,7 +265,7 @@ functions:
           path: routes/{routeId}
           method: get
           cors: true
-          private: true  # Requires API key for rate limiting
+
           # No authorizer - public endpoint
           request:
             parameters:
@@ -311,7 +300,7 @@ functions:
           path: buses/{busId}
           method: get
           cors: true
-          private: true  # Requires API key for rate limiting
+
           authorizer:
             name: auth
             type: TOKEN
@@ -329,7 +318,7 @@ functions:
           path: buses/{busId}
           method: put
           cors: true
-          private: true  # Requires API key for rate limiting
+
           authorizer:
             name: auth
             type: TOKEN
@@ -347,7 +336,7 @@ functions:
           path: buses/{busId}/location
           method: get
           cors: true
-          private: true  # Requires API key for rate limiting
+
           authorizer:
             name: auth
             type: TOKEN
@@ -365,7 +354,7 @@ functions:
           path: buses/{busId}/location
           method: put
           cors: true
-          private: true  # Requires API key for rate limiting
+
           authorizer:
             name: auth
             type: TOKEN
@@ -379,14 +368,13 @@ functions:
   # ADMIN ENDPOINTS (NTC ROLE) - Full administrative access
   # =============================================================================
   adminGetRoutes:
-    handler: src/handlers/admin/routes.getRoutes
+    handler: src/handlers/admin/routes.getAllRoutes
     description: Admin - Get all routes with full details (NTC only)
     events:
       - http:
           path: admin/routes
           method: get
           cors: true
-          private: true  # Requires API key for rate limiting
           authorizer:
             name: auth
             type: TOKEN
@@ -400,7 +388,7 @@ functions:
           path: admin/routes/{routeId}
           method: get
           cors: true
-          private: true  # Requires API key for rate limiting
+
           authorizer:
             name: auth
             type: TOKEN
@@ -418,7 +406,7 @@ functions:
           path: admin/routes
           method: post
           cors: true
-          private: true  # Requires API key for rate limiting
+
           authorizer:
             name: auth
             type: TOKEN
@@ -432,7 +420,7 @@ functions:
           path: admin/routes/{routeId}
           method: put
           cors: true
-          private: true  # Requires API key for rate limiting
+
           authorizer:
             name: auth
             type: TOKEN
@@ -450,7 +438,7 @@ functions:
           path: admin/routes/{routeId}
           method: delete
           cors: true
-          private: true  # Requires API key for rate limiting
+
           authorizer:
             name: auth
             type: TOKEN
@@ -468,7 +456,7 @@ functions:
           path: admin/buses
           method: get
           cors: true
-          private: true  # Requires API key for rate limiting
+
           authorizer:
             name: auth
             type: TOKEN

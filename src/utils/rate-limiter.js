@@ -1,5 +1,5 @@
 const Redis = require('ioredis');
-const { logger } = require('./logger');
+const { error: logError, warn: logWarn, info: logInfo, debug: logDebug } = require('./logger');
 
 // Rate limiting configuration
 const RATE_LIMITS = {
@@ -68,7 +68,7 @@ async function checkRateLimit(event, limitType = 'PUBLIC') {
       const ttl = await redis.ttl(key);
       const resetTime = new Date(Date.now() + (ttl * 1000));
       
-      logger.warn('Rate limit exceeded', {
+      logWarn('Rate limit exceeded', {
         ip,
         limitType,
         count,
@@ -97,7 +97,7 @@ async function checkRateLimit(event, limitType = 'PUBLIC') {
     const ttl = await redis.ttl(key);
     const resetTime = new Date(Date.now() + (ttl * 1000));
     
-    logger.debug('Rate limit check passed', {
+    logDebug('Rate limit check passed', {
       ip,
       limitType,
       count: newCount,
@@ -114,7 +114,7 @@ async function checkRateLimit(event, limitType = 'PUBLIC') {
     };
     
   } catch (error) {
-    logger.error('Rate limit check failed', { error: error.message });
+    logError('Rate limit check failed', { error: error.message });
     // On error, allow the request (fail open)
     return {
       allowed: true,
@@ -186,7 +186,7 @@ function withRateLimit(handler, limitType = 'PUBLIC') {
       
     } catch (error) {
       // Even on error, we should add rate limit headers
-      logger.error('Handler error with rate limiting', { error: error.message });
+      logError('Handler error with rate limiting', { error: error.message });
       throw error;
     }
   };
