@@ -5,7 +5,6 @@
 - Name: AKASH
 - Index no: COBSCCOMP4Y241P-008
 - Coventry Id: 15386593
-- Module: NB6007CEM
 
 ---
 
