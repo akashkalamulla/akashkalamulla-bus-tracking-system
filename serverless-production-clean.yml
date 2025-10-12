@@ -11,20 +11,10 @@ provider:
   memorySize: 256
   timeout: 30
 
-  # Enable X-Ray tracing for distributed tracing
+  # Enable X-Ray tracing
   tracing:
     lambda: true
     apiGateway: true
-
-  # CloudWatch Logs configuration
-  logs:
-    restApi:
-      accessLogging: true
-      executionLogging: true
-      level: INFO
-      fullExecutionData: true
-    httpApi:
-      format: requestId:$requestId status:$status error:$error.message
 
   environment:
     ROUTES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-routes
@@ -100,9 +90,8 @@ provider:
             - logs:CreateLogGroup
             - logs:CreateLogStream
             - logs:PutLogEvents
-            - logs:DescribeLogStreams
-            - logs:DescribeLogGroups
-          Resource: "*"
+          Resource:
+            - "arn:aws:logs:${opt:region, self:provider.region}:*:log-group:/aws/lambda/${self:service}-${opt:stage, self:provider.stage}-*"
 
 # Lambda functions definitions
 functions:
@@ -111,9 +100,6 @@ functions:
     handler: src/handlers/health.ping
     timeout: 10
     reservedConcurrency: 5
-    tracing: Active
-    environment:
-      LOG_LEVEL: INFO
     events:
       - http:
           path: /health
@@ -477,6 +463,18 @@ resources:
           - Key: Service
             Value: ${self:service}
 
+    # SNS Topic for monitoring alerts
+    ErrorAlarmTopic:
+      Type: AWS::SNS::Topic
+      Properties:
+        TopicName: ${self:service}-${opt:stage, self:provider.stage}-error-alarms
+        DisplayName: "Bus Tracking System Production Alerts"
+        Tags:
+          - Key: Environment
+            Value: ${opt:stage, self:provider.stage}
+          - Key: Service
+            Value: ${self:service}
+
   Outputs:
     RoutesTableName:
       Value: !Ref RoutesTable
@@ -508,289 +506,10 @@ resources:
       Export:
         Name: ${self:service}-${opt:stage, self:provider.stage}-users-table
 
-    # Monitoring Outputs
-    ErrorAlarmTopic:
+    ErrorAlarmTopicArn:
       Value: !Ref ErrorAlarmTopic
       Export:
         Name: ${self:service}-${opt:stage, self:provider.stage}-error-alarm-topic
-
-    ApiGatewayRestApiId:
-      Value: !Ref ApiGatewayRestApi
-      Export:
-        Name: ${self:service}-${opt:stage, self:provider.stage}-api-gateway-id
-
-    # SNS Topic for alarms
-    ErrorAlarmTopic:
-      Type: AWS::SNS::Topic
-      Properties:
-        TopicName: ${self:service}-${opt:stage, self:provider.stage}-error-alarms
-        DisplayName: "Bus Tracking System Error Alerts"
-        Tags:
-          - Key: Environment
-            Value: ${opt:stage, self:provider.stage}
-          - Key: Service
-            Value: ${self:service}
-
-    # Lambda Function Error Rate Alarm
-    HighErrorRateAlarm:
-      Type: AWS::CloudWatch::Alarm
-      Properties:
-        AlarmName: ${self:service}-${opt:stage, self:provider.stage}-high-error-rate
-        AlarmDescription: "High error rate detected in Lambda functions"
-        MetricName: Errors
-        Namespace: AWS/Lambda
-        Statistic: Sum
-        Period: 300
-        EvaluationPeriods: 2
-        Threshold: 10
-        ComparisonOperator: GreaterThanThreshold
-        AlarmActions:
-          - !Ref ErrorAlarmTopic
-        TreatMissingData: notBreaching
-        Tags:
-          - Key: Environment
-            Value: ${opt:stage, self:provider.stage}
-          - Key: Service
-            Value: ${self:service}
-
-    # API Gateway 4XX Error Alarm
-    ApiGateway4XXAlarm:
-      Type: AWS::CloudWatch::Alarm
-      Properties:
-        AlarmName: ${self:service}-${opt:stage, self:provider.stage}-api-4xx-errors
-        AlarmDescription: "High rate of 4XX errors in API Gateway"
-        MetricName: 4XXError
-        Namespace: AWS/ApiGateway
-        Statistic: Sum
-        Period: 300
-        EvaluationPeriods: 2
-        Threshold: 20
-        ComparisonOperator: GreaterThanThreshold
-        Dimensions:
-          - Name: ApiName
-            Value: ${opt:stage, self:provider.stage}-${self:service}
-        AlarmActions:
-          - !Ref ErrorAlarmTopic
-        TreatMissingData: notBreaching
-
-    # API Gateway 5XX Error Alarm
-    ApiGateway5XXAlarm:
-      Type: AWS::CloudWatch::Alarm
-      Properties:
-        AlarmName: ${self:service}-${opt:stage, self:provider.stage}-api-5xx-errors
-        AlarmDescription: "High rate of 5XX errors in API Gateway"
-        MetricName: 5XXError
-        Namespace: AWS/ApiGateway
-        Statistic: Sum
-        Period: 300
-        EvaluationPeriods: 1
-        Threshold: 5
-        ComparisonOperator: GreaterThanThreshold
-        Dimensions:
-          - Name: ApiName
-            Value: ${opt:stage, self:provider.stage}-${self:service}
-        AlarmActions:
-          - !Ref ErrorAlarmTopic
-        TreatMissingData: notBreaching
-
-    # Lambda Duration Alarm
-    HighDurationAlarm:
-      Type: AWS::CloudWatch::Alarm
-      Properties:
-        AlarmName: ${self:service}-${opt:stage, self:provider.stage}-high-duration
-        AlarmDescription: "High execution duration detected in Lambda functions"
-        MetricName: Duration
-        Namespace: AWS/Lambda
-        Statistic: Average
-        Period: 300
-        EvaluationPeriods: 2
-        Threshold: 25000
-        ComparisonOperator: GreaterThanThreshold
-        AlarmActions:
-          - !Ref ErrorAlarmTopic
-        TreatMissingData: notBreaching
-      Type: AWS::SNS::Topic
-      Properties:
-        TopicName: ${self:service}-${opt:stage, self:provider.stage}-error-alarms
-        DisplayName: "Bus Tracking System Error Alerts"
-        Tags:
-          - Key: Environment
-            Value: ${opt:stage, self:provider.stage}
-          - Key: Service
-            Value: ${self:service}
-
-    # CloudWatch Log Groups with retention
-    ApiGatewayLogGroup:
-      Type: AWS::Logs::LogGroup
-      Properties:
-        LogGroupName: !Sub "API-Gateway-Execution-Logs_${ApiGatewayRestApi}/${opt:stage, self:provider.stage}"
-        RetentionInDays: 30
-        Tags:
-          - Key: Environment
-            Value: ${opt:stage, self:provider.stage}
-          - Key: Service
-            Value: ${self:service}
-
-    # Lambda Error Rate Alarm
-    LambdaErrorRateAlarm:
-      Type: AWS::CloudWatch::Alarm
-      Properties:
-        AlarmName: ${self:service}-${opt:stage, self:provider.stage}-lambda-error-rate
-        AlarmDescription: "Lambda function error rate is too high"
-        MetricName: Errors
-        Namespace: AWS/Lambda
-        Statistic: Sum
-        Period: 300
-        EvaluationPeriods: 2
-        Threshold: 5
-        ComparisonOperator: GreaterThanOrEqualToThreshold
-        AlarmActions:
-          - !Ref ErrorAlarmTopic
-        Dimensions:
-          - Name: FunctionName
-            Value: ${self:service}-${opt:stage, self:provider.stage}
-        TreatMissingData: notBreaching
-
-    # API Gateway 4xx Error Alarm
-    ApiGateway4xxAlarm:
-      Type: AWS::CloudWatch::Alarm
-      Properties:
-        AlarmName: ${self:service}-${opt:stage, self:provider.stage}-api-4xx-errors
-        AlarmDescription: "API Gateway 4xx error rate is high"
-        MetricName: 4XXError
-        Namespace: AWS/ApiGateway
-        Statistic: Sum
-        Period: 300
-        EvaluationPeriods: 2
-        Threshold: 10
-        ComparisonOperator: GreaterThanOrEqualToThreshold
-        AlarmActions:
-          - !Ref ErrorAlarmTopic
-        Dimensions:
-          - Name: ApiName
-            Value: ${opt:stage, self:provider.stage}-${self:service}
-        TreatMissingData: notBreaching
-
-    # API Gateway 5xx Error Alarm
-    ApiGateway5xxAlarm:
-      Type: AWS::CloudWatch::Alarm
-      Properties:
-        AlarmName: ${self:service}-${opt:stage, self:provider.stage}-api-5xx-errors
-        AlarmDescription: "API Gateway 5xx error rate is high"
-        MetricName: 5XXError
-        Namespace: AWS/ApiGateway
-        Statistic: Sum
-        Period: 300
-        EvaluationPeriods: 1
-        Threshold: 1
-        ComparisonOperator: GreaterThanOrEqualToThreshold
-        AlarmActions:
-          - !Ref ErrorAlarmTopic
-        Dimensions:
-          - Name: ApiName
-            Value: ${opt:stage, self:provider.stage}-${self:service}
-        TreatMissingData: notBreaching
-
-    # Lambda Duration Alarm
-    LambdaDurationAlarm:
-      Type: AWS::CloudWatch::Alarm
-      Properties:
-        AlarmName: ${self:service}-${opt:stage, self:provider.stage}-lambda-duration
-        AlarmDescription: "Lambda function duration is too high"
-        MetricName: Duration
-        Namespace: AWS/Lambda
-        Statistic: Average
-        Period: 300
-        EvaluationPeriods: 2
-        Threshold: 25000  # 25 seconds (our timeout is 30)
-        ComparisonOperator: GreaterThanOrEqualToThreshold
-        AlarmActions:
-          - !Ref ErrorAlarmTopic
-        TreatMissingData: notBreaching
-
-    # DynamoDB Throttling Alarm
-    DynamoDBThrottleAlarm:
-      Type: AWS::CloudWatch::Alarm
-      Properties:
-        AlarmName: ${self:service}-${opt:stage, self:provider.stage}-dynamodb-throttles
-        AlarmDescription: "DynamoDB requests are being throttled"
-        MetricName: ThrottledRequests
-        Namespace: AWS/DynamoDB
-        Statistic: Sum
-        Period: 300
-        EvaluationPeriods: 1
-        Threshold: 1
-        ComparisonOperator: GreaterThanOrEqualToThreshold
-        AlarmActions:
-          - !Ref ErrorAlarmTopic
-        TreatMissingData: notBreaching
-
-    # CloudWatch Dashboard
-    MonitoringDashboard:
-      Type: AWS::CloudWatch::Dashboard
-      Properties:
-        DashboardName: ${self:service}-${opt:stage, self:provider.stage}-monitoring
-        DashboardBody: !Sub |
-          {
-            "widgets": [
-              {
-                "type": "metric",
-                "x": 0,
-                "y": 0,
-                "width": 12,
-                "height": 6,
-                "properties": {
-                  "metrics": [
-                    [ "AWS/Lambda", "Invocations", "FunctionName", "${self:service}-${opt:stage, self:provider.stage}-health" ],
-                    [ ".", "Errors", ".", "." ],
-                    [ ".", "Duration", ".", "." ]
-                  ],
-                  "period": 300,
-                  "stat": "Sum",
-                  "region": "${opt:region, self:provider.region}",
-                  "title": "Lambda Metrics"
-                }
-              },
-              {
-                "type": "metric",
-                "x": 12,
-                "y": 0,
-                "width": 12,
-                "height": 6,
-                "properties": {
-                  "metrics": [
-                    [ "AWS/ApiGateway", "Count", "ApiName", "${opt:stage, self:provider.stage}-${self:service}" ],
-                    [ ".", "4XXError", ".", "." ],
-                    [ ".", "5XXError", ".", "." ],
-                    [ ".", "Latency", ".", "." ]
-                  ],
-                  "period": 300,
-                  "stat": "Sum",
-                  "region": "${opt:region, self:provider.region}",
-                  "title": "API Gateway Metrics"
-                }
-              },
-              {
-                "type": "metric",
-                "x": 0,
-                "y": 6,
-                "width": 24,
-                "height": 6,
-                "properties": {
-                  "metrics": [
-                    [ "AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", "${self:provider.environment.ROUTES_TABLE}" ],
-                    [ ".", "ConsumedWriteCapacityUnits", ".", "." ],
-                    [ ".", "ConsumedReadCapacityUnits", "TableName", "${self:provider.environment.BUSES_TABLE}" ],
-                    [ ".", "ConsumedWriteCapacityUnits", ".", "." ]
-                  ],
-                  "period": 300,
-                  "stat": "Sum",
-                  "region": "${opt:region, self:provider.region}",
-                  "title": "DynamoDB Capacity Consumption"
-                }
-              }
-            ]
-          }
 
 plugins:
   - serverless-offline
