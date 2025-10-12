@@ -453,67 +453,106 @@ async function searchRoutes(event) {
     const searchTerm = queryParams.q || '';
     const { limit, page, offset } = parsePaginationParams(event);
     
+    logInfo('Search routes request', { searchTerm, page, limit, queryParams });
+    
     if (!searchTerm || searchTerm.length < 2) {
       return errorResponse(400, 'Search term must be at least 2 characters');
     }
     
-    const cacheKey = `public:routes:search:${encodeURIComponent(searchTerm)}:page:${page}:limit:${limit}`;
-    
-    // Check cache first
-    // let cachedData = await redis.get(); // Redis disabled
-    
-    if (cachedData) {
-      const data = JSON.parse(cachedData);
-      const etag = generateETag(data);
-      
-      if (checkClientCache(event, etag)) {
-        logInfo('Client cache hit for route search', { searchTerm, page, limit });
-        return createNotModifiedResponse();
-      }
-      
-      logInfo('Redis cache hit for route search', { searchTerm, page, limit });
-      return createCachedResponse(data, CACHE_TTL.ROUTES);
-    }
-    
-    // Search in DynamoDB (simplified - in production use ElasticSearch)
+    // Get all routes from DynamoDB
     const params = {
-      TableName: ROUTES_TABLE,
-      FilterExpression: 'contains(RouteName, :searchTerm) OR contains(StartLocation, :searchTerm) OR contains(EndLocation, :searchTerm)',
-      ExpressionAttributeValues: {
-        ':searchTerm': searchTerm
-      }
+      TableName: ROUTES_TABLE
     };
     
     const result = await dynamodb.send(new ScanCommand(params));
     
-    // Apply pagination to results
-    const startIndex = offset;
-    const endIndex = startIndex + limit;
-    const paginatedItems = result.Items.slice(startIndex, endIndex);
+    if (!result.Items || result.Items.length === 0) {
+      return successResponse({
+        data: [],
+        pagination: {
+          currentPage: 1,
+          totalPages: 0,
+          totalItems: 0,
+          itemsPerPage: limit,
+          hasNext: false,
+          hasPrevious: false
+        },
+        meta: {
+          searchTerm,
+          totalMatches: 0,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
     
-    const baseUrl = `${event.requestContext.domainName}${event.requestContext.path}`;
-    const responseData = createPaginatedResponse(
-      paginatedItems,
-      result.Items.length,
-      page,
-      limit,
-      baseUrl
-    );
-    
-    responseData.meta.searchTerm = searchTerm;
-    responseData.meta.totalMatches = result.Items.length;
-    
-    // Cache search results for 10 minutes
-    // Redis caching disabled
-    
-    logInfo('Route search completed and cached', { 
-      searchTerm, 
-      matches: result.Items.length,
-      page,
-      limit
+    // Filter results in memory for case-insensitive search
+    const searchTermLower = searchTerm.toLowerCase();
+    const filteredResults = result.Items.filter(route => {
+      const routeName = (route.route_name || '').toLowerCase();
+      const startLocation = (route.start_location || '').toLowerCase();
+      const endLocation = (route.end_location || '').toLowerCase();
+      const fromCity = (route.from_city || '').toLowerCase();
+      const toCity = (route.to_city || '').toLowerCase();
+      const description = (route.description || '').toLowerCase();
+      
+      return routeName.includes(searchTermLower) ||
+             startLocation.includes(searchTermLower) ||
+             endLocation.includes(searchTermLower) ||
+             fromCity.includes(searchTermLower) ||
+             toCity.includes(searchTermLower) ||
+             description.includes(searchTermLower);
     });
     
-    return createCachedResponse(responseData, 600);
+    // Apply pagination to filtered results
+    const startIndex = offset;
+    const endIndex = startIndex + limit;
+    const paginatedItems = filteredResults.slice(startIndex, endIndex);
+    
+    // Calculate pagination info
+    const totalPages = Math.ceil(filteredResults.length / limit);
+    const hasNext = page < totalPages;
+    const hasPrev = page > 1;
+    
+    const responseData = {
+      data: paginatedItems,
+      pagination: {
+        currentPage: page,
+        totalPages,
+        totalItems: filteredResults.length,
+        itemsPerPage: limit,
+        hasNext,
+        hasPrevious: hasPrev
+      },
+      links: {
+        self: `/public/routes/search?q=${encodeURIComponent(searchTerm)}&page=${page}&limit=${limit}`,
+        first: `/public/routes/search?q=${encodeURIComponent(searchTerm)}&page=1&limit=${limit}`,
+        last: `/public/routes/search?q=${encodeURIComponent(searchTerm)}&page=${totalPages}&limit=${limit}`
+      },
+      meta: {
+        searchTerm,
+        totalMatches: filteredResults.length,
+        cached: false,
+        timestamp: new Date().toISOString()
+      }
+    };
+    
+    if (hasNext) {
+      responseData.links.next = `/public/routes/search?q=${encodeURIComponent(searchTerm)}&page=${page + 1}&limit=${limit}`;
+    }
+    
+    if (hasPrev) {
+      responseData.links.prev = `/public/routes/search?q=${encodeURIComponent(searchTerm)}&page=${page - 1}&limit=${limit}`;
+    }
+    
+    logInfo('Route search completed', { 
+      searchTerm, 
+      matches: filteredResults.length,
+      page,
+      limit,
+      returned: paginatedItems.length
+    });
+    
+    return successResponse(responseData);
     
   } catch (error) {
     logError('Error searching routes:', error);

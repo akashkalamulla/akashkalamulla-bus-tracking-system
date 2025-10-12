@@ -200,7 +200,6 @@ function logAdminAction(context, action, details = {}) {
  * @param {string} routeId - Optional specific route ID
  */
 async function invalidateCache(routeId = null) {
-  const redis = initRedis();
   if (!redis) return;
 
   try {
@@ -229,7 +228,6 @@ async function invalidateCache(routeId = null) {
  * @returns {Object|null} - Cached data or null
  */
 async function getFromCache(key) {
-  const redis = initRedis();
   if (!redis) return null;
 
   try {
@@ -248,7 +246,6 @@ async function getFromCache(key) {
  * @param {number} ttl - Time to live in seconds
  */
 async function setCache(key, data, ttl = CACHE_CONFIG.TTL_SECONDS) {
-  const redis = initRedis();
   if (!redis) return;
 
   try {

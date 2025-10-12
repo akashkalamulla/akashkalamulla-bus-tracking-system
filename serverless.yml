@@ -16,6 +16,7 @@ provider:
     BUSES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-buses
     LOCATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-locations
     LIVE_LOCATIONS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-live-locations
+    SCHEDULES_TABLE: ${self:service}-${opt:stage, self:provider.stage}-schedules
     USERS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-users
     REDIS_HOST: ${self:custom.redis.${opt:stage, self:provider.stage}.host}
     REDIS_PORT: ${self:custom.redis.${opt:stage, self:provider.stage}.port}
@@ -83,6 +84,9 @@ provider:
             # Users table and indexes
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.USERS_TABLE}"
             - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.USERS_TABLE}/index/*"
+            # Schedules table and indexes
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.SCHEDULES_TABLE}"
+            - "arn:aws:dynamodb:${opt:region, self:provider.region}:*:table/${self:provider.environment.SCHEDULES_TABLE}/index/*"
 
         - Effect: Allow
           Action:
@@ -242,6 +246,60 @@ functions:
           cors: true
 
           # No authorizer - public endpoint
+
+  # =============================================================================
+  # PUBLIC SCHEDULE ENDPOINTS - No authentication required
+  # =============================================================================
+  publicGetRouteSchedules:
+    handler: src/handlers/public/schedules.getRouteSchedules
+    description: Public - Get all schedules for a specific route (no auth required)
+    events:
+      - http:
+          path: public/routes/{routeId}/schedules
+          method: get
+          cors: true
+          request:
+            parameters:
+              paths:
+                routeId: true
+              querystrings:
+                date: false
+                period: false
+                status: false
+                page: false
+                limit: false
+
+  publicGetSchedules:
+    handler: src/handlers/public/schedules.getSchedules
+    description: Public - Get all schedules with filtering (no auth required)
+    events:
+      - http:
+          path: public/schedules
+          method: get
+          cors: true
+          request:
+            parameters:
+              querystrings:
+                date: false
+                routeId: false
+                period: false
+                status: false
+                busId: false
+                page: false
+                limit: false
+
+  publicGetSchedule:
+    handler: src/handlers/public/schedules.getSchedule
+    description: Public - Get specific schedule details (no auth required)
+    events:
+      - http:
+          path: public/schedules/{scheduleId}
+          method: get
+          cors: true
+          request:
+            parameters:
+              paths:
+                scheduleId: true
 
   # =============================================================================
   # PUBLIC ENDPOINTS (COMMUTER ROLE) - Read-only access
@@ -896,6 +954,54 @@ resources:
         BillingMode: PAY_PER_REQUEST
         # Additional attributes: password, role, name, operatorId, isActive, createdAt, lastLoginAt
         # These are stored as document attributes and don't need to be defined in AttributeDefinitions
+
+    # =============================================================================
+    # SCHEDULES TABLE FOR BUS SCHEDULES
+    # =============================================================================
+    SchedulesTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:service}-${opt:stage, self:provider.stage}-schedules
+        AttributeDefinitions:
+          - AttributeName: ScheduleID
+            AttributeType: S
+          - AttributeName: route_id
+            AttributeType: S
+          - AttributeName: schedule_date
+            AttributeType: S
+          - AttributeName: BusID
+            AttributeType: S
+        KeySchema:
+          - AttributeName: ScheduleID
+            KeyType: HASH
+        GlobalSecondaryIndexes:
+          - IndexName: RouteScheduleIndex
+            KeySchema:
+              - AttributeName: route_id
+                KeyType: HASH
+              - AttributeName: schedule_date
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: BusScheduleIndex
+            KeySchema:
+              - AttributeName: BusID
+                KeyType: HASH
+              - AttributeName: schedule_date
+                KeyType: RANGE
+            Projection:
+              ProjectionType: ALL
+          - IndexName: DateScheduleIndex
+            KeySchema:
+              - AttributeName: schedule_date
+                KeyType: HASH
+            Projection:
+              ProjectionType: ALL
+        BillingMode: PAY_PER_REQUEST
+        # Additional attributes: route_name, day_of_week, trip_number, trip_period, 
+        # departure_time, estimated_arrival_time, departure_datetime, estimated_arrival_datetime,
+        # trip_status, duration_hours, start_location, end_location, driver_name, 
+        # conductor_name, bus_capacity, license_plate, created_at, updated_at
 
     # Redis ElastiCache Replication Group (only for production)
     RedisReplicationGroup:
