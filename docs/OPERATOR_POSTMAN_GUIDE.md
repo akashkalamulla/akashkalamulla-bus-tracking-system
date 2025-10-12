@@ -209,10 +209,10 @@ pm.test("Login successful", function () {
     const response = pm.response.json();
     pm.expect(response).to.have.property('success', true);
     
-    // Save token for other requests
-    if (response.data && response.data.token) {
-        pm.collectionVariables.set("authToken", "Bearer " + response.data.token);
-        console.log("Token saved: " + response.data.token);
+    // Save RAW token for Authorization tab usage (recommended)
+    if (response && response.token) {
+        pm.collectionVariables.set("authTokenRaw", response.token);
+        console.log("Raw token saved: " + response.token.substring(0,20) + "...");
     }
 });
 ```
@@ -234,7 +234,7 @@ pm.test("Login successful", function () {
 
 3. **Verify token was saved:**
    - Go to collection → Variables tab
-   - Check that `authToken` now has "Bearer ey..." value
+   - Check that `authTokenRaw` now has the JWT value (without "Bearer")
 
 ### Phase 3: Create Bus Management Requests
 
@@ -246,7 +246,7 @@ pm.test("Login successful", function () {
 3. **URL**: `{{baseUrl}}/operator/buses`
 4. **Authorization tab**: 
    - Type: "Bearer Token"
-   - Token: `{{authToken}}`
+   - Token: `{{authTokenRaw}}`
 5. **Tests**:
 ```javascript
 pm.test("Get buses successful", function () {
@@ -259,7 +259,7 @@ pm.test("Get buses successful", function () {
 1. **Add Request**: `2. Create New Bus`
 2. **Method**: `POST`
 3. **URL**: `{{baseUrl}}/operator/buses`
-4. **Authorization**: Bearer Token `{{authToken}}`
+4. **Authorization**: Bearer Token `{{authTokenRaw}}`
 5. **Headers**: `Content-Type: application/json`
 6. **Body**:
 ```json
@@ -292,13 +292,13 @@ pm.test("Bus created successfully", function () {
 1. **Add Request**: `3. Get Bus Details`
 2. **Method**: `GET`
 3. **URL**: `{{baseUrl}}/operator/buses/{{testBusId}}`
-4. **Authorization**: Bearer Token `{{authToken}}`
+4. **Authorization**: Bearer Token `{{authTokenRaw}}`
 
 #### 3.4 Update Bus Request
 1. **Add Request**: `4. Update Bus`
 2. **Method**: `PUT`
 3. **URL**: `{{baseUrl}}/operator/buses/{{testBusId}}`
-4. **Authorization**: Bearer Token `{{authToken}}`
+4. **Authorization**: Bearer Token `{{authTokenRaw}}`
 5. **Body**:
 ```json
 {
@@ -311,7 +311,7 @@ pm.test("Bus created successfully", function () {
 1. **Add Request**: `5. Delete Bus`
 2. **Method**: `DELETE`
 3. **URL**: `{{baseUrl}}/operator/buses/{{testBusId}}`
-4. **Authorization**: Bearer Token `{{authToken}}`
+4. **Authorization**: Bearer Token `{{authTokenRaw}}`
 
 ### Phase 4: Create Location Management Requests
 
@@ -321,7 +321,7 @@ pm.test("Bus created successfully", function () {
 1. **Add Request**: `1. Update Bus Location`
 2. **Method**: `PUT`
 3. **URL**: `{{baseUrl}}/operator/buses/{{testBusId}}/location`
-4. **Authorization**: Bearer Token `{{authToken}}`
+4. **Authorization**: Bearer Token `{{authTokenRaw}}`
 5. **Body**:
 ```json
 {
@@ -337,7 +337,7 @@ pm.test("Bus created successfully", function () {
 1. **Add Request**: `2. Get Bus Location`
 2. **Method**: `GET`
 3. **URL**: `{{baseUrl}}/operator/buses/{{testBusId}}/location`
-4. **Authorization**: Bearer Token `{{authToken}}`
+4. **Authorization**: Bearer Token `{{authTokenRaw}}`
 
 ### Phase 5: Manual Testing Workflow
 
@@ -1114,7 +1114,50 @@ pm.test("No server errors", function () {
 
 ### Common Issues and Solutions:
 
-#### Issue 1: "Token is not valid" Error
+#### Issue 1: AWS IAM 403 Forbidden Error
+**Symptoms:**
+```json
+{
+  "Message": "User is not authorized to access this resource with an explicit deny in an identity-based policy"
+}
+```
+
+**Root Cause:** Postman is sending malformed Authorization headers or treating the request as AWS IAM-signed instead of JWT Bearer token.
+
+**Solutions:**
+1. ✅ **Check Postman Console**: View → Show Postman Console, resend request, check actual Authorization header sent
+2. ✅ **Fix duplicate headers**: Remove Authorization from Headers tab if using Authorization tab
+3. ✅ **Use correct token format**: Save raw token (no "Bearer" prefix) in variable, let Postman add prefix
+4. ✅ **Check collection auth**: Ensure collection Authorization isn't set to "AWS Signature"
+
+**Recommended Fix (Option A - Use Authorization Tab):**
+```javascript
+// In Login Tests tab - save RAW token without "Bearer"
+const response = pm.response.json();
+if (response && response.token) {
+    pm.environment.set('authTokenRaw', response.token);
+    console.log('Raw token saved: ' + response.token.substring(0,20) + '...');
+}
+```
+
+Then for other requests:
+- **Authorization tab**: Type = "Bearer Token", Token = `{{authTokenRaw}}`
+- **Headers tab**: Remove any manual Authorization entries
+
+**Alternative Fix (Option B - Manual Headers):**
+```javascript
+// In Login Tests tab - save full header value
+const response = pm.response.json();
+if (response && response.token) {
+    pm.environment.set('authToken', 'Bearer ' + response.token);
+}
+```
+
+Then for other requests:
+- **Authorization tab**: Type = "No Auth"
+- **Headers tab**: Add `Authorization: {{authToken}}`
+
+#### Issue 2: "Token is not valid" Error
 **Symptoms:**
 ```json
 {
@@ -1135,7 +1178,7 @@ pm.test("No server errors", function () {
 console.log("Current token: " + pm.collectionVariables.get("authToken"));
 ```
 
-#### Issue 2: Variables Not Updating
+#### Issue 3: Variables Not Updating
 **Symptoms:** Old values persist in requests
 
 **Solutions:**
@@ -1150,7 +1193,7 @@ console.log("All collection variables:");
 console.log(pm.collectionVariables.toObject());
 ```
 
-#### Issue 3: 502 Bad Gateway Errors
+#### Issue 4: 502 Bad Gateway Errors
 **Symptoms:** Server errors during requests
 
 **Solutions:**
@@ -1159,7 +1202,7 @@ console.log(pm.collectionVariables.toObject());
 3. ✅ **Wait and retry**: Temporary server issues
 4. ✅ **Check CloudWatch logs**: For detailed error information
 
-#### Issue 4: CORS Errors in Browser
+#### Issue 5: CORS Errors in Browser
 **Note:** This shouldn't happen in Postman desktop app, but if using web version:
 
 **Solutions:**
@@ -1176,6 +1219,16 @@ Authorization: {{authToken}}
 ```
 
 This should return basic health status without authentication.
+
+### Quick Authorization Setup Checklist:
+For each request that needs authentication:
+- [ ] ✅ **Login request saves token correctly** (check Console output)
+- [ ] ✅ **Token variable is populated** (check Environment/Collection variables)
+- [ ] ✅ **Authorization tab OR Headers tab** (not both)
+- [ ] ✅ **No duplicate Authorization entries**
+- [ ] ✅ **Collection auth type is not AWS Signature**
+- [ ] ✅ **Token format includes "Bearer " prefix** (if manual header)
+- [ ] ✅ **Postman Console shows correct header sent**
 
 ---
 

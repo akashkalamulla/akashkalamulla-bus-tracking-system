@@ -339,12 +339,14 @@ async function updateBus(event) {
     const expressionAttributeNames = {};
     
     if (updateData.capacity !== undefined) {
-      updateExpression.push('Capacity = :capacity');
+      updateExpression.push('#capacity = :capacity');
+      expressionAttributeNames['#capacity'] = 'Capacity';
       expressionAttributeValues[':capacity'] = updateData.capacity;
     }
     
     if (updateData.routeId !== undefined) {
-      updateExpression.push('RouteID = :routeId');
+      updateExpression.push('#routeId = :routeId');
+      expressionAttributeNames['#routeId'] = 'RouteID';
       expressionAttributeValues[':routeId'] = updateData.routeId;
     }
     
@@ -355,7 +357,8 @@ async function updateBus(event) {
     }
     
     if (updateData.model !== undefined) {
-      updateExpression.push('Model = :model');
+      updateExpression.push('#model = :model');
+      expressionAttributeNames['#model'] = 'Model';
       expressionAttributeValues[':model'] = updateData.model;
     }
     
@@ -365,7 +368,8 @@ async function updateBus(event) {
       expressionAttributeValues[':year'] = updateData.year;
     }
     
-    updateExpression.push('UpdatedAt = :updatedAt');
+    updateExpression.push('#updatedAt = :updatedAt');
+    expressionAttributeNames['#updatedAt'] = 'UpdatedAt';
     expressionAttributeValues[':updatedAt'] = new Date().toISOString();
     
     if (updateExpression.length === 1) { // Only updatedAt
@@ -377,7 +381,7 @@ async function updateBus(event) {
       Key: { BusID: busId },
       UpdateExpression: `SET ${updateExpression.join(', ')}`,
       ExpressionAttributeValues: expressionAttributeValues,
-      ExpressionAttributeNames: Object.keys(expressionAttributeNames).length > 0 ? expressionAttributeNames : undefined,
+      ExpressionAttributeNames: expressionAttributeNames,
       ReturnValues: 'ALL_NEW'
     };
     
