@@ -230,10 +230,9 @@ module.exports.getSchedules = async (event) => {
 
     logInfo('Getting all schedules', { page, limit, filters: queryParams });
 
-    // Build scan parameters
+    // Build scan parameters - Remove Limit to get all items first
     const scanParams = {
       TableName: SCHEDULES_TABLE,
-      Limit: limit,
     };
 
     // Build filter expression based on query parameters
@@ -275,10 +274,35 @@ module.exports.getSchedules = async (event) => {
       scanParams.ExpressionAttributeValues = expressionAttributeValues;
     }
 
-    const command = new ScanCommand(scanParams);
-    const result = await dynamodb.send(command);
+    // Perform complete scan with pagination to get ALL items
+    let allItems = [];
+    let lastEvaluatedKey = null;
 
-    if (!result.Items || result.Items.length === 0) {
+    do {
+      if (lastEvaluatedKey) {
+        scanParams.ExclusiveStartKey = lastEvaluatedKey;
+      }
+
+      const command = new ScanCommand(scanParams);
+      const result = await dynamodb.send(command);
+
+      if (result.Items && result.Items.length > 0) {
+        allItems = allItems.concat(result.Items);
+      }
+
+      lastEvaluatedKey = result.LastEvaluatedKey;
+      
+      logInfo('Scan progress', { 
+        currentBatch: result.Items ? result.Items.length : 0,
+        totalSoFar: allItems.length,
+        hasMore: !!lastEvaluatedKey 
+      });
+
+    } while (lastEvaluatedKey);
+
+    logInfo('Complete scan finished', { totalItems: allItems.length });
+
+    if (allItems.length === 0) {
       logInfo('No schedules found');
       return successResponse({
         data: [],
@@ -298,7 +322,7 @@ module.exports.getSchedules = async (event) => {
     }
 
     // Sort by date and departure time
-    const sortedSchedules = result.Items.sort((a, b) => {
+    const sortedSchedules = allItems.sort((a, b) => {
       const dateCompare = a.schedule_date.localeCompare(b.schedule_date);
       if (dateCompare !== 0) return dateCompare;
       return a.departure_time.localeCompare(b.departure_time);
