@@ -20,7 +20,8 @@ provider:
     USERS_TABLE: ${self:service}-${opt:stage, self:provider.stage}-users
     NODE_ENV: ${opt:stage, self:provider.stage}
     # Production secrets from SSM Parameter Store
-    JWT_SECRET: ${ssm:/bus-tracking-system/${opt:stage, self:provider.stage}/jwt-secret}
+    # JWT_SECRET: ${ssm:/bus-tracking-system/${opt:stage, self:provider.stage}/jwt-secret}
+    JWT_SECRET: "development-jwt-secret-key-replace-in-production"
     # Redis configuration (disabled for production safety)
     REDIS_URL: ''
     REDIS_HOST: ''
@@ -347,6 +348,55 @@ functions:
             parameters:
               paths:
                 routeId: true
+
+  # =============================================================================
+  # DOCUMENTATION ENDPOINTS - Live API Documentation
+  # =============================================================================
+  
+  getDocsIndex:
+    handler: src/handlers/docs.getDocsIndex
+    description: API Documentation Landing Page
+    events:
+      - http:
+          path: docs
+          method: get
+          cors: true
+
+  getSwaggerUI:
+    handler: src/handlers/docs.getSwaggerUI
+    description: Swagger UI Documentation Interface
+    events:
+      - http:
+          path: docs/swagger
+          method: get
+          cors: true
+
+  getReDoc:
+    handler: src/handlers/docs.getReDoc
+    description: ReDoc Documentation Interface
+    events:
+      - http:
+          path: docs/redoc
+          method: get
+          cors: true
+
+  getOpenAPISpec:
+    handler: src/handlers/docs.getOpenAPISpec
+    description: OpenAPI 3.0 Specification (YAML)
+    events:
+      - http:
+          path: docs/openapi.yaml
+          method: get
+          cors: true
+
+  getOpenAPISpecJSON:
+    handler: src/handlers/docs.getOpenAPISpecJSON
+    description: OpenAPI 3.0 Specification (JSON)
+    events:
+      - http:
+          path: docs/openapi.json
+          method: get
+          cors: true
 
   # =============================================================================
   # OPERATOR ENDPOINTS (BUS_OPERATOR ROLE) - Location updates + read access

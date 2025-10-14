@@ -12,6 +12,10 @@ A clean, production-ready serverless application for real-time bus tracking and 
 
 ## Quick links
 
+- **🌐 Live API Documentation**: [`https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs`](https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs)
+- **📋 Swagger UI**: [`https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs/swagger`](https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs/swagger)
+- **📖 ReDoc**: [`https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs/redoc`](https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs/redoc)
+- **📄 OpenAPI Spec (JSON)**: [`https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs/openapi.json`](https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs/openapi.json)
 - Dev base URL: `https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev`
 - Prod base URL: `https://s8gu5u156h.execute-api.ap-south-1.amazonaws.com/production`
 
@@ -87,6 +91,48 @@ npm run dev
 
 ```powershell
 npm test
+```
+
+---
+
+## 📚 API Documentation
+
+### Live Documentation (Online)
+
+The API documentation is now available online and automatically updated with each deployment:
+
+#### 🌐 **Documentation Hub**
+- **Main Portal**: [https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs](https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs)
+  - Complete overview with system features
+  - Student information and academic context
+  - Direct links to all documentation formats
+
+#### 📋 **Interactive Documentation**
+- **Swagger UI**: [https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs/swagger](https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs/swagger)
+  - Interactive API testing interface
+  - Try endpoints directly from browser
+  - Real-time request/response examples
+
+#### 📖 **Comprehensive Documentation**
+- **ReDoc**: [https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs/redoc](https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs/redoc)
+  - Beautiful, responsive documentation
+  - Detailed schemas and examples
+  - Mobile-friendly interface
+
+#### 📄 **API Specification**
+- **OpenAPI JSON**: [https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs/openapi.json](https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs/openapi.json)
+- **OpenAPI YAML**: [https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs/openapi.yaml](https://zcmux4xvg0.execute-api.ap-south-1.amazonaws.com/dev/docs/openapi.yaml)
+
+### Local Documentation
+
+You can also run documentation locally:
+
+```powershell
+# Serve documentation locally
+npm run docs:swagger
+
+# Validate OpenAPI specification
+npm run docs:validate
 ```
 
 ---
